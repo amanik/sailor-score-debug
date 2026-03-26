@@ -1,5 +1,6 @@
 /**
  * Shared constants used across multiple components.
+ * Categories based on real P&L structures from SBMS community.
  */
 
 export const bucketOptions = {
@@ -16,9 +17,22 @@ export const bucketOptions = {
 } as const;
 
 export const CATEGORIES = [
+  // Business expense categories (from real SBMS P&Ls)
   "Software",
   "Marketing",
   "Contract Labor",
+  "Coaching & Training",
+  "Networking & Events",
+  "Office & Space",
+  "Insurance",
+  "Bookkeeping & Accounting",
+  "Stripe & Bank Fees",
+  "Travel",
+  "Meals & Entertainment",
+  "Debt Payment",
+  "Estimated Taxes",
+  "Owners Distribution",
+  // Personal expense categories
   "Groceries",
   "Eating Out",
   "Subscriptions",
@@ -26,9 +40,10 @@ export const CATEGORIES = [
   "Health & Fitness",
   "Shopping",
   "Auto & Gas",
-  "Insurance",
   "Health",
-  "Stripe Deposits",
-  "Owners Distribution",
-  "Office & Space",
+  // Revenue categories
+  "Coaching Revenue",
+  "Group Program Revenue",
+  "Course Revenue",
+  "Speaking Revenue",
 ] as const;

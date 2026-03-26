@@ -130,6 +130,60 @@ const categoryMap: Record<string, CategoryConfig> = {
     getTransactions: (all) =>
       all.filter((t) => t.category === "Health" && !t.isTransfer),
   },
+  "coaching-training": {
+    title: "Coaching & Training",
+    subtitle: "Professional development and coaching programs",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Coaching & Training" && !t.isTransfer),
+  },
+  "networking-events": {
+    title: "Networking & Events",
+    subtitle: "Conferences, memberships, and networking",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Networking & Events" && !t.isTransfer),
+  },
+  "bookkeeping-accounting": {
+    title: "Bookkeeping & Accounting",
+    subtitle: "Accounting software and services",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Bookkeeping & Accounting" && !t.isTransfer),
+  },
+  "stripe-bank-fees": {
+    title: "Stripe & Bank Fees",
+    subtitle: "Payment processing and bank fees",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Stripe & Bank Fees" && !t.isTransfer),
+  },
+  travel: {
+    title: "Travel",
+    subtitle: "Business travel expenses",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Travel" && !t.isTransfer),
+  },
+  "meals-entertainment": {
+    title: "Meals & Entertainment",
+    subtitle: "Business meals and client entertainment",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Meals & Entertainment" && !t.isTransfer),
+  },
+  "debt-payment": {
+    title: "Debt Payment",
+    subtitle: "Loan and debt payments",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Debt Payment" && !t.isTransfer),
+  },
+  "estimated-taxes": {
+    title: "Estimated Taxes",
+    subtitle: "Quarterly estimated tax payments",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Estimated Taxes" && !t.isTransfer),
+  },
+  "owners-distribution": {
+    title: "Owners Distribution",
+    subtitle: "Personal draws from business",
+    getTransactions: (all) =>
+      all.filter((t) => t.category === "Owners Distribution" && !t.isTransfer),
+  },
 };
 
 interface PageProps {
