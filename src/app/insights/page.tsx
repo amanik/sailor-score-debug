@@ -23,6 +23,7 @@ import {
   Sparkles,
   Star,
   AlertTriangle,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 
@@ -213,22 +214,27 @@ function ReviewBucketRow({
   label,
   count,
   amount,
+  href,
 }: {
   readonly icon: LucideIcon;
   readonly label: string;
   readonly count: number;
   readonly amount: number;
+  readonly href: string;
 }) {
   if (count === 0) return null;
   return (
-    <div className="flex items-center justify-between py-2">
+    <Link href={href} className="flex items-center justify-between py-2 group/row hover:bg-bg-secondary/30 -mx-1 px-1 rounded-lg transition-colors">
       <div className="flex items-center gap-2">
         <Icon className="size-3.5 text-text-secondary" />
         <span className="text-[12px] text-text-primary">{label}</span>
         <span className="text-[10px] text-text-tertiary">({count})</span>
       </div>
-      <span className="text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(amount)}</span>
-    </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(amount)}</span>
+        <ChevronRight className="size-3 text-text-quaternary group-hover/row:text-text-primary transition-colors" />
+      </div>
+    </Link>
   );
 }
 
@@ -506,13 +512,15 @@ export default function InsightsPage() {
             description="2 months of expenses in savings"
           />
           {waterfallHealth.taxTarget > 0 && (
-            <WaterfallMeter
-              label="Tax Savings"
-              icon={Building2}
-              current={waterfallHealth.taxSaved}
-              target={waterfallHealth.taxTarget}
-              description="Estimated quarterly liability"
-            />
+            <Link href="/insights/taxes" className="block">
+              <WaterfallMeter
+                label="Tax Savings"
+                icon={Building2}
+                current={waterfallHealth.taxSaved}
+                target={waterfallHealth.taxTarget}
+                description="Estimated quarterly liability \u2192 Tap to calculate"
+              />
+            </Link>
           )}
         </section>
 
@@ -548,18 +556,21 @@ export default function InsightsPage() {
                     label="High ROI"
                     count={reviewSummary.business.highRoi.count}
                     amount={reviewSummary.business.highRoi.amount}
+                    href="/insights/business/high-roi"
                   />
                   <ReviewBucketRow
                     icon={TrendingDown}
                     label="No ROI"
                     count={reviewSummary.business.noRoi.count}
                     amount={reviewSummary.business.noRoi.amount}
+                    href="/insights/business/no-roi"
                   />
                   <ReviewBucketRow
                     icon={HelpCircle}
                     label="Unsure"
                     count={reviewSummary.business.unsure.count}
                     amount={reviewSummary.business.unsure.amount}
+                    href="/insights/unsure-review"
                   />
                 </div>
               </div>
@@ -576,18 +587,21 @@ export default function InsightsPage() {
                     label="Essential"
                     count={reviewSummary.personal.essential.count}
                     amount={reviewSummary.personal.essential.amount}
+                    href="/insights/personal/essential"
                   />
                   <ReviewBucketRow
                     icon={Star}
                     label="Meaningful"
                     count={reviewSummary.personal.meaningful.count}
                     amount={reviewSummary.personal.meaningful.amount}
+                    href="/insights/personal/meaningful"
                   />
                   <ReviewBucketRow
                     icon={AlertTriangle}
                     label="Mismatch"
                     count={reviewSummary.personal.mismatch.count}
                     amount={reviewSummary.personal.mismatch.amount}
+                    href="/insights/personal/mismatch"
                   />
                 </div>
               </div>
@@ -607,23 +621,30 @@ export default function InsightsPage() {
 
         {/* ── Money Flow ── */}
         <section className="flex flex-col gap-2">
-          <p className="section-label">Money Flow</p>
-          <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-text-tertiary">Money in</span>
-              <span className="text-[13px] font-bold text-text-primary tabular-nums">+{formatCurrency(moneyFlow.moneyIn)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-text-tertiary">Money out</span>
-              <span className="text-[13px] font-bold text-text-primary tabular-nums">-{formatCurrency(moneyFlow.moneyOut)}</span>
-            </div>
-            <div className="border-t border-border-secondary pt-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-primary">Left over</span>
-              <span className="text-[13px] font-bold tabular-nums text-text-primary">
-                {moneyFlow.leftOver >= 0 ? "+" : "-"}{formatCurrency(moneyFlow.leftOver)}
-              </span>
-            </div>
+          <div className="flex items-center justify-between">
+            <p className="section-label">Money Flow</p>
+            <Link href="/insights/cashflow-review" className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-text-primary transition-colors">
+              Review <ChevronRight className="size-3" />
+            </Link>
           </div>
+          <Link href="/insights/cashflow-review" className="block">
+            <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-text-tertiary">Money in</span>
+                <span className="text-[13px] font-bold text-text-primary tabular-nums">+{formatCurrency(moneyFlow.moneyIn)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-text-tertiary">Money out</span>
+                <span className="text-[13px] font-bold text-text-primary tabular-nums">-{formatCurrency(moneyFlow.moneyOut)}</span>
+              </div>
+              <div className="border-t border-border-secondary pt-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-text-primary">Left over</span>
+                <span className="text-[13px] font-bold tabular-nums text-text-primary">
+                  {moneyFlow.leftOver >= 0 ? "+" : "-"}{formatCurrency(moneyFlow.leftOver)}
+                </span>
+              </div>
+            </div>
+          </Link>
         </section>
 
         {/* ── Spending Breakdown (Donut) ── */}

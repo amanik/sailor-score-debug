@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import {
   useTransactionStore,
   selectUnreviewedByType,
+  selectBusinessBucketStats,
+  selectPersonalBucketStats,
 } from "@/stores/transactions";
 import { useAccountStore } from "@/stores/accounts";
 import {
@@ -14,12 +16,21 @@ import {
   selectBucketProgress,
 } from "@/stores/buckets";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import {
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  HelpCircle,
+  Sparkles,
+  Star,
+  AlertTriangle,
+  Eye,
+  type LucideIcon,
+} from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { Bucket } from "@/data/buckets";
 import { formatCurrency } from "@/lib/format";
-import { getCategoryIcon } from "@/lib/icons";
 
 // ─── Shared Components ──────────────────────────────────────
 
@@ -188,88 +199,151 @@ function WaterfallBreakdown({
   );
 }
 
-function CategoryList({
-  type,
-}: {
-  readonly type: "business" | "personal";
-}) {
-  const transactions = useTransactionStore((s) => s.transactions);
-  const accounts = useAccountStore((s) => s.accounts);
+const businessBucketConfig: Record<string, { label: string; icon: LucideIcon; href: string }> = {
+  high_roi: { label: "High ROI", icon: TrendingUp, href: "/insights/business/high-roi" },
+  no_roi: { label: "No ROI", icon: TrendingDown, href: "/insights/business/no-roi" },
+  unsure: { label: "Unsure", icon: HelpCircle, href: "/insights/unsure-review" },
+};
 
-  const accountIds = useMemo(
-    () => accounts.filter((a) => a.type === type).map((a) => a.id),
-    [accounts, type]
+const personalBucketConfig: Record<string, { label: string; icon: LucideIcon; href: string }> = {
+  essential: { label: "Essential", icon: Sparkles, href: "/insights/personal/essential" },
+  meaningful: { label: "Meaningful", icon: Star, href: "/insights/personal/meaningful" },
+  mismatch: { label: "Mismatch", icon: AlertTriangle, href: "/insights/personal/mismatch" },
+};
+
+function BucketRow({
+  icon: Icon,
+  label,
+  count,
+  total,
+  href,
+}: {
+  readonly icon: LucideIcon;
+  readonly label: string;
+  readonly count: number;
+  readonly total: number;
+  readonly href: string;
+}) {
+  if (count === 0) return null;
+  return (
+    <Link href={href} className="group/bucket block">
+      <div className="flex items-center gap-3 rounded-xl border border-border-secondary bg-bg-primary px-4 py-3 shadow-sm transition-shadow duration-200 hover:shadow-md">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-bg-secondary">
+          <Icon className="size-4 text-text-secondary" />
+        </div>
+        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+          <p className="text-[13px] font-semibold text-text-primary">{label}</p>
+          <p className="text-[10px] text-text-tertiary">
+            {count} transaction{count !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-[13px] font-bold tracking-tight text-text-primary tabular-nums">
+            {formatCurrency(total)}
+          </p>
+          <ChevronRight className="size-4 text-text-quaternary transition-transform duration-200 group-hover/bucket:translate-x-0.5 group-hover/bucket:text-text-primary" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function BusinessBucketList({ accountIds }: { readonly accountIds: readonly string[] }) {
+  const transactions = useTransactionStore((s) => s.transactions);
+  const notes = useTransactionStore((s) => s.notes);
+
+  const stats = useMemo(
+    () => selectBusinessBucketStats({ transactions, notes }, accountIds),
+    [transactions, notes, accountIds]
   );
 
-  const breakdown = useMemo(() => {
-    const relevant = transactions.filter(
-      (t) =>
-        accountIds.includes(t.accountId) &&
-        t.amount > 0 &&
-        !t.isTransfer
-    );
-
-    const total = relevant.reduce((sum, t) => sum + t.amount, 0);
-
-    const grouped = relevant.reduce<Record<string, { total: number; count: number }>>(
-      (acc, t) => {
-        const existing = acc[t.category] ?? { total: 0, count: 0 };
-        return {
-          ...acc,
-          [t.category]: {
-            total: existing.total + t.amount,
-            count: existing.count + 1,
-          },
-        };
-      },
-      {}
-    );
-
-    return Object.entries(grouped)
-      .map(([category, data]) => ({
-        category,
-        total: Math.round(data.total * 100) / 100,
-        count: data.count,
-        percentage: total > 0 ? Math.round((data.total / total) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [transactions, accountIds]);
-
-  const slugify = (cat: string) =>
-    cat.toLowerCase().replace(/\s*&\s*/g, "-").replace(/\s+/g, "-");
+  const unreviewedCount = useMemo(
+    () => selectUnreviewedByType({ transactions, notes }, "business", accountIds).length,
+    [transactions, notes, accountIds]
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
-      {breakdown.map((item) => {
-        const Icon = getCategoryIcon(item.category);
+      {stats.map((s) => {
+        const config = businessBucketConfig[s.bucket];
+        if (!config) return null;
         return (
-          <Link
-            key={item.category}
-            href={`/transactions/${slugify(item.category)}`}
-            className="group/cat block"
-          >
-            <div className="flex items-center gap-3 rounded-xl border border-border-secondary bg-bg-primary px-4 py-3 shadow-sm transition-shadow duration-200 hover:shadow-md">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-bg-secondary">
-                <Icon className="size-4 text-text-secondary" />
-              </div>
-              <div className="flex flex-1 min-w-0 flex-col gap-0.5">
-                <p className="text-[13px] font-semibold text-text-primary">
-                  {item.category}
-                </p>
-                <p className="text-[10px] text-text-tertiary">
-                  {item.count} transaction{item.count !== 1 ? "s" : ""} &middot; {item.percentage}%
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <p className="text-[13px] font-bold tracking-tight text-text-primary tabular-nums">
-                  ${item.total.toLocaleString()}
-                </p>
-                <ChevronRight className="size-4 text-text-quaternary transition-transform duration-200 group-hover/cat:translate-x-0.5 group-hover/cat:text-text-primary" />
-              </div>
-            </div>
-          </Link>
+          <BucketRow
+            key={s.bucket}
+            icon={config.icon}
+            label={config.label}
+            count={s.count}
+            total={s.total}
+            href={config.href}
+          />
         );
       })}
+      {unreviewedCount > 0 && (
+        <Link href="/review/business" className="group/bucket block">
+          <div className="flex items-center gap-3 rounded-xl border border-dashed border-border-secondary bg-bg-primary px-4 py-3 transition-shadow duration-200 hover:shadow-md">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-bg-secondary">
+              <Eye className="size-4 text-text-tertiary" />
+            </div>
+            <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+              <p className="text-[13px] font-semibold text-text-secondary">Unreviewed</p>
+              <p className="text-[10px] text-text-tertiary">
+                {unreviewedCount} transaction{unreviewedCount !== 1 ? "s" : ""} waiting
+              </p>
+            </div>
+            <ChevronRight className="size-4 text-text-quaternary" />
+          </div>
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function PersonalBucketList({ accountIds }: { readonly accountIds: readonly string[] }) {
+  const transactions = useTransactionStore((s) => s.transactions);
+  const notes = useTransactionStore((s) => s.notes);
+
+  const stats = useMemo(
+    () => selectPersonalBucketStats({ transactions, notes }, accountIds),
+    [transactions, notes, accountIds]
+  );
+
+  const unreviewedCount = useMemo(
+    () => selectUnreviewedByType({ transactions, notes }, "personal", accountIds).length,
+    [transactions, notes, accountIds]
+  );
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {stats.map((s) => {
+        const config = personalBucketConfig[s.bucket];
+        if (!config) return null;
+        return (
+          <BucketRow
+            key={s.bucket}
+            icon={config.icon}
+            label={config.label}
+            count={s.count}
+            total={s.total}
+            href={config.href}
+          />
+        );
+      })}
+      {unreviewedCount > 0 && (
+        <Link href="/review/personal" className="group/bucket block">
+          <div className="flex items-center gap-3 rounded-xl border border-dashed border-border-secondary bg-bg-primary px-4 py-3 transition-shadow duration-200 hover:shadow-md">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-bg-secondary">
+              <Eye className="size-4 text-text-tertiary" />
+            </div>
+            <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+              <p className="text-[13px] font-semibold text-text-secondary">Unreviewed</p>
+              <p className="text-[10px] text-text-tertiary">
+                {unreviewedCount} transaction{unreviewedCount !== 1 ? "s" : ""} waiting
+              </p>
+            </div>
+            <ChevronRight className="size-4 text-text-quaternary" />
+          </div>
+        </Link>
+      )}
     </div>
   );
 }
@@ -374,10 +448,10 @@ function BusinessContent() {
         </div>
       </section>
 
-      {/* Expenses */}
+      {/* Expenses by Bucket */}
       <section className="flex flex-col gap-2">
         <p className="section-label px-1">Expenses</p>
-        <CategoryList type="business" />
+        <BusinessBucketList accountIds={businessAccountIds} />
       </section>
 
       {/* Tax Withholdings */}
@@ -536,10 +610,10 @@ function PersonalContent() {
         </div>
       </section>
 
-      {/* Expenses */}
+      {/* Expenses by Bucket */}
       <section className="flex flex-col gap-2">
         <p className="section-label px-1">Expenses</p>
-        <CategoryList type="personal" />
+        <PersonalBucketList accountIds={personalAccountIds} />
       </section>
 
       {/* Savings & Goals */}

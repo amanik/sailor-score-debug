@@ -141,6 +141,108 @@ export function selectPersonalTransactions(
   );
 }
 
+export function selectByBusinessBucket(
+  state: TransactionState,
+  bucket: "high_roi" | "no_roi" | "unsure",
+  businessAccountIds?: readonly string[]
+): readonly MutableTransaction[] {
+  const bizIds =
+    businessAccountIds ??
+    useAccountStore
+      .getState()
+      .getAccountsByType("business")
+      .map((a) => a.id);
+  return state.transactions.filter(
+    (t) =>
+      bizIds.includes(t.accountId) &&
+      t.reviewed &&
+      t.businessBucket === bucket &&
+      !t.isTransfer
+  );
+}
+
+export function selectByPersonalBucket(
+  state: TransactionState,
+  bucket: "essential" | "meaningful" | "mismatch",
+  personalAccountIds?: readonly string[]
+): readonly MutableTransaction[] {
+  const ids =
+    personalAccountIds ??
+    useAccountStore
+      .getState()
+      .getAccountsByType("personal")
+      .map((a) => a.id);
+  return state.transactions.filter(
+    (t) =>
+      ids.includes(t.accountId) &&
+      t.reviewed &&
+      t.personalBucket === bucket &&
+      !t.isTransfer
+  );
+}
+
+export interface BucketStat {
+  readonly bucket: string;
+  readonly count: number;
+  readonly total: number;
+}
+
+export function selectBusinessBucketStats(
+  state: TransactionState,
+  businessAccountIds?: readonly string[]
+): readonly BucketStat[] {
+  const bizIds =
+    businessAccountIds ??
+    useAccountStore
+      .getState()
+      .getAccountsByType("business")
+      .map((a) => a.id);
+  const reviewed = state.transactions.filter(
+    (t) =>
+      bizIds.includes(t.accountId) &&
+      t.reviewed &&
+      t.amount > 0 &&
+      !t.isTransfer
+  );
+  const buckets: Array<"high_roi" | "no_roi" | "unsure"> = ["high_roi", "no_roi", "unsure"];
+  return buckets.map((bucket) => {
+    const matching = reviewed.filter((t) => t.businessBucket === bucket);
+    return {
+      bucket,
+      count: matching.length,
+      total: matching.reduce((sum, t) => sum + t.amount, 0),
+    };
+  });
+}
+
+export function selectPersonalBucketStats(
+  state: TransactionState,
+  personalAccountIds?: readonly string[]
+): readonly BucketStat[] {
+  const ids =
+    personalAccountIds ??
+    useAccountStore
+      .getState()
+      .getAccountsByType("personal")
+      .map((a) => a.id);
+  const reviewed = state.transactions.filter(
+    (t) =>
+      ids.includes(t.accountId) &&
+      t.reviewed &&
+      t.amount > 0 &&
+      !t.isTransfer
+  );
+  const buckets: Array<"essential" | "meaningful" | "mismatch"> = ["essential", "meaningful", "mismatch"];
+  return buckets.map((bucket) => {
+    const matching = reviewed.filter((t) => t.personalBucket === bucket);
+    return {
+      bucket,
+      count: matching.length,
+      total: matching.reduce((sum, t) => sum + t.amount, 0),
+    };
+  });
+}
+
 // ─── Store ────────────────────────────────────────────────────
 
 export const useTransactionStore = create<TransactionState & TransactionActions>()(
