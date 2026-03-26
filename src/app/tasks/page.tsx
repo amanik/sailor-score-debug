@@ -657,7 +657,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      <div className="h-8 safe-bottom" />
+      <div className="h-24 safe-bottom" />
     </div>
   );
 }
