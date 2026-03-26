@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BarChart3, CreditCard, Upload } from "lucide-react";
+import { LayoutDashboard, BarChart3, CreditCard, Upload, CheckSquare } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/accounts", label: "Accounts", icon: CreditCard },
   { href: "/upload", label: "Upload", icon: Upload },
@@ -15,7 +16,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   // Only show on top-level screens
-  const topLevelPaths = ["/", "/insights", "/accounts", "/upload"];
+  const topLevelPaths = ["/", "/tasks", "/insights", "/accounts", "/upload"];
   const isTopLevel = topLevelPaths.includes(pathname);
   if (!isTopLevel) return null;
 

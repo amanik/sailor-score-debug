@@ -150,7 +150,7 @@ function WaterfallBreakdown({
   result,
   resultLabel,
 }: {
-  readonly items: readonly { readonly label: string; readonly amount: number }[];
+  readonly items: readonly { readonly label: string; readonly amount: number; readonly href?: string }[];
   readonly result: number;
   readonly resultLabel: string;
 }) {
@@ -171,11 +171,11 @@ function WaterfallBreakdown({
         <Separator className="mb-1" />
         {items.map((item) => {
           const width = maxAmount > 0 ? Math.min((Math.abs(item.amount) / maxAmount) * 100, 100) : 0;
-          return (
-            <div key={item.label} className="flex items-center gap-2">
+          const barContent = (
+            <div className={`flex items-center gap-2 ${item.href ? "group/bar" : ""}`}>
               <div className="bar-bg flex-1 flex items-center">
                 <div
-                  className="bar-fill flex items-center justify-between px-2.5 py-1.5"
+                  className={`bar-fill flex items-center justify-between px-2.5 py-1.5 ${item.href ? "transition-opacity hover:opacity-80" : ""}`}
                   style={{ width: `${width}%`, minWidth: "fit-content" }}
                 >
                   <span className="font-mono text-[9px] font-medium text-bg-primary whitespace-nowrap">
@@ -186,7 +186,17 @@ function WaterfallBreakdown({
                   </span>
                 </div>
               </div>
+              {item.href && (
+                <ChevronRight className="size-3 shrink-0 text-text-quaternary transition-transform group-hover/bar:translate-x-0.5" />
+              )}
             </div>
+          );
+          return item.href ? (
+            <Link key={item.label} href={item.href} className="block">
+              {barContent}
+            </Link>
+          ) : (
+            <div key={item.label}>{barContent}</div>
           );
         })}
         <Separator className="mt-1" />
@@ -433,19 +443,24 @@ function BusinessContent() {
       {/* Revenue */}
       <section className="flex flex-col gap-2">
         <p className="section-label px-1">Revenue</p>
-        <div className="flex items-center justify-between rounded-xl bg-bg-secondary px-4 py-3">
-          <div className="flex flex-col gap-0.5">
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Cash Collected
-            </p>
-            <p className="text-xl font-bold tracking-tighter text-text-primary">
-              {formatCurrency(revenue)}
-            </p>
+        <Link href="/insights/cashflow-review" className="block group/revenue">
+          <div className="flex items-center justify-between rounded-xl bg-bg-secondary px-4 py-3 transition-shadow hover:shadow-md">
+            <div className="flex flex-col gap-0.5">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                Cash Collected
+              </p>
+              <p className="text-xl font-bold tracking-tighter text-text-primary">
+                {formatCurrency(revenue)}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-mono text-[10px] text-text-tertiary">
+                Tap to review
+              </p>
+              <ChevronRight className="size-3.5 text-text-quaternary transition-transform group-hover/revenue:translate-x-0.5" />
+            </div>
           </div>
-          <p className="font-mono text-[10px] text-text-tertiary">
-            Business accounts only
-          </p>
-        </div>
+        </Link>
       </section>
 
       {/* Expenses by Bucket */}
@@ -458,16 +473,21 @@ function BusinessContent() {
       {taxBuckets.length > 0 && (
         <section className="flex flex-col gap-2">
           <p className="section-label px-1">Tax Withholdings</p>
-          <div className="flex flex-col gap-3 rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm">
-            {taxBuckets.map((bucket) => (
-              <ProgressBar
-                key={bucket.id}
-                label={`${bucket.emoji} ${bucket.name}`}
-                current={bucket.current}
-                target={bucket.target ?? 0}
-              />
-            ))}
-          </div>
+          <Link href="/insights/taxes" className="block group/tax">
+            <div className="flex flex-col gap-3 rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm transition-shadow hover:shadow-md">
+              {taxBuckets.map((bucket) => (
+                <ProgressBar
+                  key={bucket.id}
+                  label={`${bucket.emoji} ${bucket.name}`}
+                  current={bucket.current}
+                  target={bucket.target ?? 0}
+                />
+              ))}
+              <p className="text-[10px] text-text-quaternary flex items-center gap-1">
+                Tap to adjust tax rate <ChevronRight className="size-3 transition-transform group-hover/tax:translate-x-0.5" />
+              </p>
+            </div>
+          </Link>
         </section>
       )}
 
@@ -476,9 +496,9 @@ function BusinessContent() {
         <p className="section-label px-1">Profit</p>
         <WaterfallBreakdown
           items={[
-            { label: "Revenue", amount: Math.round(revenue) },
-            { label: "Expenses", amount: Math.round(expenses) },
-            { label: "Taxes", amount: Math.round(totalTaxes) },
+            { label: "Revenue", amount: Math.round(revenue), href: "/insights/cashflow-review" },
+            { label: "Expenses", amount: Math.round(expenses), href: "/review/business" },
+            { label: "Taxes", amount: Math.round(totalTaxes), href: "/insights/taxes" },
           ]}
           result={profit}
           resultLabel="Profit"
