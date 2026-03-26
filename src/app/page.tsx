@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { WeekStreak } from "@/components/dashboard/WeekStreak";
 import type { Bucket } from "@/data/buckets";
 import { formatCurrency } from "@/lib/format";
 
@@ -736,6 +737,8 @@ export default function DashboardPage() {
             </h1>
           </div>
         </div>
+
+        <WeekStreak />
 
         <TabBar
           defaultTab="Business"
