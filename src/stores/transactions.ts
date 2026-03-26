@@ -33,7 +33,9 @@ interface TransactionActions {
     bucket: string,
     roi?: number,
     roiType?: string,
-    noRoiReason?: string
+    noRoiReason?: string,
+    meaningRating?: number,
+    meaningCategory?: string
   ) => void;
   readonly unReviewTransaction: (id: string) => void;
   readonly moveToAccountType: (
@@ -168,7 +170,7 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
           ),
         })),
 
-      reviewTransaction: (id, bucket, roi, roiType, noRoiReason) =>
+      reviewTransaction: (id, bucket, roi, roiType, noRoiReason, meaningRating, meaningCategory) =>
         set((state) => {
           const txn = state.transactions.find((t) => t.id === id);
           if (!txn) return state;
@@ -192,6 +194,10 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
           } else {
             updates.personalBucket =
               bucket as MutableTransaction["personalBucket"];
+            if (meaningRating !== undefined)
+              updates.meaningRating = meaningRating;
+            if (meaningCategory !== undefined)
+              updates.meaningCategory = meaningCategory;
           }
 
           return {
@@ -215,6 +221,8 @@ export const useTransactionStore = create<TransactionState & TransactionActions>
                   roiRating: undefined,
                   roiType: undefined,
                   noRoiReason: undefined,
+                  meaningRating: undefined,
+                  meaningCategory: undefined,
                 }
               : t
           ),
@@ -260,6 +268,8 @@ type CompatAction =
       roi?: number;
       roiType?: string;
       noRoiReason?: string;
+      meaningRating?: number;
+      meaningCategory?: string;
     }
   | {
       type: "MOVE_TO_ACCOUNT_TYPE";
@@ -290,7 +300,9 @@ export function useTransactionDispatch(): (action: CompatAction) => void {
           action.bucket,
           action.roi,
           action.roiType,
-          action.noRoiReason
+          action.noRoiReason,
+          action.meaningRating,
+          action.meaningCategory
         );
         break;
       case "MOVE_TO_ACCOUNT_TYPE":

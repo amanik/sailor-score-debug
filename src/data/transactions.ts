@@ -38,6 +38,8 @@ export interface Transaction {
   readonly roiRating?: number;
   readonly roiType?: "time" | "money" | "emotional" | "overhead" | null;
   readonly personalBucket?: "essential" | "meaningful" | "mismatch" | null;
+  readonly meaningRating?: number;
+  readonly meaningCategory?: string;
   readonly reviewed: boolean;
   readonly reviewedAt?: string;
   readonly rule?: string;

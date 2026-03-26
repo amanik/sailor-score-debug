@@ -54,13 +54,15 @@ export default function PersonalReviewPage() {
     }
   }
 
-  function advanceToNext(bucket: Bucket) {
+  function advanceToNext(bucket: Bucket, meaningRating?: number, meaningCategory?: string) {
     if (current) {
       setReviewedLocal((prev) => [...prev, { txn: current, bucket }]);
       dispatch({
         type: "REVIEW_TRANSACTION",
         id: current.id,
         bucket,
+        meaningRating,
+        meaningCategory,
       });
     }
     setDirection(null);
@@ -268,7 +270,7 @@ export default function PersonalReviewPage() {
                   {meaningCategories.map((cat) => (
                     <button
                       key={cat}
-                      onClick={() => advanceToNext("meaningful")}
+                      onClick={() => advanceToNext("meaningful", rating, cat)}
                       className="card p-3 text-left text-sm font-semibold text-text-primary hover:bg-bg-secondary transition-colors active:scale-[0.98]"
                     >
                       {cat}
@@ -314,19 +316,30 @@ export default function PersonalReviewPage() {
                   </button>
                 </div>
 
-                <div className="flex flex-col items-center gap-4 text-center pt-2 pb-4">
-                  <h2 className="text-lg font-bold tracking-tight text-text-primary">
-                    A moment to pivot
+                <div className="flex flex-col gap-4 pt-2 pb-4">
+                  <h2 className="text-lg font-bold tracking-tight text-text-primary text-center">
+                    What happened here?
                   </h2>
-                  <p className="text-sm text-text-tertiary max-w-[280px]">
-                    Not every spend hits the mark, and that&apos;s okay.
+                  <p className="text-sm text-text-tertiary text-center max-w-[280px] mx-auto">
+                    Not every spend hits the mark. Understanding why helps you pivot.
                   </p>
-                  <button
-                    onClick={() => advanceToNext("mismatch")}
-                    className="mt-4 bg-text-primary text-bg-primary px-6 py-3 rounded-xl text-sm font-bold active:scale-[0.98] transition-transform"
-                  >
-                    Continue
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      "Impulse purchase",
+                      "Identity spending",
+                      "Boredom buy",
+                      "Forgot to cancel",
+                      "Quality didn\u2019t match price",
+                    ].map((reason) => (
+                      <button
+                        key={reason}
+                        onClick={() => advanceToNext("mismatch")}
+                        className="card p-3 text-left text-sm font-semibold text-text-primary hover:bg-bg-secondary transition-colors active:scale-[0.98]"
+                      >
+                        {reason}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </motion.div>

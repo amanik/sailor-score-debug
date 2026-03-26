@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import { useTransactionStore } from "@/stores/transactions";
 import { useAccountStore } from "@/stores/accounts";
+import { useBucketStore, selectBucketsByType } from "@/stores/buckets";
 import { formatCurrency } from "@/lib/format";
+import Link from "next/link";
 import {
   DollarSign,
   Building2,
@@ -11,6 +13,16 @@ import {
   Monitor,
   RefreshCw,
   AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  ShieldCheck,
+  Wallet,
+  CreditCard,
+  ArrowRight,
+  HelpCircle,
+  Sparkles,
+  Star,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,9 +31,11 @@ import {
 function DonutChart({
   segments,
   size = 140,
+  centerLabel,
 }: {
   readonly segments: readonly { readonly label: string; readonly value: number; readonly color: string }[];
   readonly size?: number;
+  readonly centerLabel?: string;
 }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   const r = (size - 16) / 2;
@@ -68,7 +82,7 @@ function DonutChart({
           className="fill-text-primary text-lg font-bold rotate-90"
           style={{ transformOrigin: `${size / 2}px ${size / 2}px` }}
         >
-          {formatCurrency(total)}
+          {centerLabel ?? formatCurrency(total)}
         </text>
       </svg>
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
@@ -144,12 +158,167 @@ function InsightCard({
   );
 }
 
+// ─── Waterfall Meter ─────────────────────────────────────────
+
+function WaterfallMeter({
+  label,
+  icon: Icon,
+  current,
+  target,
+  description,
+}: {
+  readonly label: string;
+  readonly icon: LucideIcon;
+  readonly current: number;
+  readonly target: number;
+  readonly description: string;
+}) {
+  const pct = target > 0 ? Math.min(Math.round((current / target) * 100), 100) : 0;
+  const isFull = pct >= 100;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm">
+      <div className="flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-bg-secondary">
+          <Icon className="size-4 text-text-secondary" />
+        </div>
+        <div className="flex flex-1 items-center justify-between">
+          <p className="text-[13px] font-semibold text-text-primary">{label}</p>
+          <p className="text-[13px] font-bold tabular-nums text-text-primary">
+            {formatCurrency(current)}
+            <span className="text-text-tertiary font-normal"> / {formatCurrency(target)}</span>
+          </p>
+        </div>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-bg-secondary">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${isFull ? "bg-emerald-500" : "bg-fg-primary"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] text-text-tertiary">{description}</p>
+        <p className={`text-[10px] font-semibold tabular-nums ${isFull ? "text-emerald-600" : "text-text-secondary"}`}>
+          {pct}%
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Review Summary Card ─────────────────────────────────────
+
+function ReviewBucketRow({
+  icon: Icon,
+  label,
+  count,
+  amount,
+}: {
+  readonly icon: LucideIcon;
+  readonly label: string;
+  readonly count: number;
+  readonly amount: number;
+}) {
+  if (count === 0) return null;
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-2">
+        <Icon className="size-3.5 text-text-secondary" />
+        <span className="text-[12px] text-text-primary">{label}</span>
+        <span className="text-[10px] text-text-tertiary">({count})</span>
+      </div>
+      <span className="text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(amount)}</span>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────
 
 export default function InsightsPage() {
   const transactions = useTransactionStore((s) => s.transactions);
   const accounts = useAccountStore((s) => s.accounts);
+  const buckets = useBucketStore((s) => s.buckets);
 
+  // ─── Cashflow Waterfall Health ───────────────────────────
+  const waterfallHealth = useMemo(() => {
+    const bizAccounts = accounts.filter((a) => a.type === "business");
+    const bizExpenses = transactions.filter((t) => {
+      const isBiz = bizAccounts.some((a) => a.id === t.accountId);
+      return isBiz && t.amount > 0 && !t.isTransfer;
+    });
+    const monthlyExpenses = bizExpenses.reduce((sum, t) => sum + t.amount, 0);
+
+    // Buffer = checking balance (business checking)
+    const bizChecking = bizAccounts.filter((a) => a.category === "checking" || a.category === "hysa");
+    const checkingBalance = bizChecking.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
+    const bufferTarget = monthlyExpenses; // 1 month of expenses
+
+    // Working Capital = 2x monthly expenses
+    const wcTarget = monthlyExpenses * 2;
+    // Approximate WC from savings-type accounts
+    const bizSavings = bizAccounts.filter((a) => a.category === "savings" || a.category === "hysa");
+    const wcCurrent = bizSavings.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
+
+    // Tax savings from buckets
+    const taxBuckets = buckets.filter(
+      (b) => b.isActive && b.name.toLowerCase().includes("tax")
+    );
+    const taxSaved = taxBuckets.reduce((sum, b) => sum + b.current, 0);
+    const taxTarget = taxBuckets.reduce((sum, b) => sum + (b.target ?? 0), 0);
+
+    return {
+      checkingBalance,
+      bufferTarget,
+      wcCurrent,
+      wcTarget,
+      taxSaved,
+      taxTarget: taxTarget > 0 ? taxTarget : monthlyExpenses * 0.25, // fallback: 25% of expenses
+      monthlyExpenses,
+    };
+  }, [transactions, accounts, buckets]);
+
+  // ─── Review Summary ──────────────────────────────────────
+  const reviewSummary = useMemo(() => {
+    const reviewed = transactions.filter((t) => t.reviewed && !t.isTransfer);
+    const unreviewed = transactions.filter((t) => !t.reviewed && !t.isTransfer && t.amount > 0);
+
+    const biz = reviewed.filter((t) => {
+      const acct = accounts.find((a) => a.id === t.accountId);
+      return acct?.type === "business" && t.amount > 0;
+    });
+    const personal = reviewed.filter((t) => {
+      const acct = accounts.find((a) => a.id === t.accountId);
+      return acct?.type === "personal" && t.amount > 0;
+    });
+
+    const highRoi = biz.filter((t) => t.businessBucket === "high_roi");
+    const noRoi = biz.filter((t) => t.businessBucket === "no_roi");
+    const unsure = biz.filter((t) => t.businessBucket === "unsure");
+
+    const essential = personal.filter((t) => t.personalBucket === "essential");
+    const meaningful = personal.filter((t) => t.personalBucket === "meaningful");
+    const mismatch = personal.filter((t) => t.personalBucket === "mismatch");
+
+    const sum = (txns: typeof biz) => txns.reduce((s, t) => s + t.amount, 0);
+
+    return {
+      unreviewedCount: unreviewed.length,
+      business: {
+        highRoi: { count: highRoi.length, amount: sum(highRoi) },
+        noRoi: { count: noRoi.length, amount: sum(noRoi) },
+        unsure: { count: unsure.length, amount: sum(unsure) },
+        total: biz.length,
+      },
+      personal: {
+        essential: { count: essential.length, amount: sum(essential) },
+        meaningful: { count: meaningful.length, amount: sum(meaningful) },
+        mismatch: { count: mismatch.length, amount: sum(mismatch) },
+        total: personal.length,
+      },
+    };
+  }, [transactions, accounts]);
+
+  // ─── Category Breakdown ──────────────────────────────────
   const categoryBreakdown = useMemo(() => {
     const expenses = transactions.filter((t) => t.amount > 0 && !t.isTransfer);
     const total = expenses.reduce((sum, t) => sum + t.amount, 0);
@@ -180,6 +349,7 @@ export default function InsightsPage() {
     return segments;
   }, [categoryBreakdown]);
 
+  // ─── Money Flow ──────────────────────────────────────────
   const moneyFlow = useMemo(() => {
     const nonTransfer = transactions.filter((t) => !t.isTransfer);
     const moneyIn = Math.abs(nonTransfer.filter((t) => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
@@ -187,30 +357,23 @@ export default function InsightsPage() {
     return { moneyIn, moneyOut, leftOver: moneyIn - moneyOut };
   }, [transactions]);
 
-  const spendingByDay = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const dayTotals = new Array(7).fill(0) as number[];
-    transactions
-      .filter((t) => t.amount > 0 && !t.isTransfer)
-      .forEach((t) => {
-        const day = new Date(t.date + "T12:00:00").getDay();
-        dayTotals[day] += t.amount;
-      });
-    const maxDay = Math.max(...dayTotals);
-    return days.map((label, i) => ({ label, value: Math.round(dayTotals[i]), maxValue: maxDay }));
-  }, [transactions]);
-
-  const creditCards = useMemo(
-    () => accounts.filter((a) => a.category === "credit_card"),
+  // ─── Debt ────────────────────────────────────────────────
+  const debtAccounts = useMemo(
+    () =>
+      accounts
+        .filter(
+          (a) =>
+            a.category === "credit_card" ||
+            a.category === "loan" ||
+            a.category === "line_of_credit"
+        )
+        .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance)),
     [accounts]
   );
-  const totalCCBalance = creditCards.reduce((sum, a) => sum + Math.abs(a.balance), 0);
-  const estimatedFees = Math.round(totalCCBalance * 0.22 / 12);
+  const totalDebt = debtAccounts.reduce((sum, a) => sum + Math.abs(a.balance), 0);
+  const estimatedMonthlyInterest = Math.round(totalDebt * 0.22 / 12);
 
-  const accountCount = accounts.length;
-  const checkingAccounts = accounts.filter((a) => a.category === "checking" || a.category === "hysa");
-  const totalLiquid = checkingAccounts.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
-
+  // ─── Recurring ───────────────────────────────────────────
   const topRecurring = useMemo(() => {
     return transactions
       .filter((t) => t.isRecurring && t.amount > 0 && !t.isTransfer && t.annualProjection)
@@ -218,23 +381,95 @@ export default function InsightsPage() {
       .slice(0, 5);
   }, [transactions]);
 
-  const businessExpenses = useMemo(() => {
-    const bizIds = accounts.filter((a) => a.type === "business").map((a) => a.id);
-    return transactions.filter((t) => bizIds.includes(t.accountId) && t.amount > 0 && !t.isTransfer);
-  }, [transactions, accounts]);
+  // ─── Smart Alerts ────────────────────────────────────────
+  const alerts = useMemo(() => {
+    const result: Array<{ icon: LucideIcon; title: string; description: string; severity: "info" | "warning" | "success" }> = [];
 
-  const softwareSpend = businessExpenses
-    .filter((t) => t.category === "Software")
-    .reduce((sum, t) => sum + t.amount, 0);
+    // Buffer below target
+    if (waterfallHealth.bufferTarget > 0 && waterfallHealth.checkingBalance < waterfallHealth.bufferTarget * 0.5) {
+      result.push({
+        icon: AlertCircle,
+        title: `Checking is ${formatCurrency(waterfallHealth.checkingBalance)} — below your buffer`,
+        description: `Your buffer target is ${formatCurrency(waterfallHealth.bufferTarget)} (1 month of expenses). You're at ${Math.round((waterfallHealth.checkingBalance / waterfallHealth.bufferTarget) * 100)}%. Focus on building this before paying down debt.`,
+        severity: "warning",
+      });
+    }
 
-  const personalExpenses = useMemo(() => {
-    const personalIds = accounts.filter((a) => a.type === "personal").map((a) => a.id);
-    return transactions.filter((t) => personalIds.includes(t.accountId) && t.amount > 0 && !t.isTransfer);
-  }, [transactions, accounts]);
+    // CC interest
+    if (estimatedMonthlyInterest > 0) {
+      result.push({
+        icon: CreditCard,
+        title: `~${formatCurrency(estimatedMonthlyInterest)}/mo in estimated interest`,
+        description: `You're carrying ${formatCurrency(totalDebt)} in debt. At ~22% APR, that's roughly ${formatCurrency(estimatedMonthlyInterest * 12)}/yr. Pay down the highest-rate balance first.`,
+        severity: "warning",
+      });
+    }
 
-  const eatingOutSpend = personalExpenses
-    .filter((t) => t.category === "Eating Out")
-    .reduce((sum, t) => sum + t.amount, 0);
+    // Biz/personal bleed — transactions on wrong account type
+    const bizAccountIds = accounts.filter((a) => a.type === "business").map((a) => a.id);
+    const personalOnBiz = transactions.filter(
+      (t) => bizAccountIds.includes(t.accountId) && t.personalBucket && !t.isTransfer
+    );
+    if (personalOnBiz.length > 0) {
+      result.push({
+        icon: Building2,
+        title: `${personalOnBiz.length} personal expenses on business accounts`,
+        description: "Move personal charges off business accounts to keep your P&L clean. Your bookkeeper will thank you.",
+        severity: "warning",
+      });
+    }
+
+    // High mismatch rate
+    if (reviewSummary.personal.total > 0) {
+      const mismatchPct = Math.round((reviewSummary.personal.mismatch.count / reviewSummary.personal.total) * 100);
+      if (mismatchPct > 25) {
+        result.push({
+          icon: AlertTriangle,
+          title: `${mismatchPct}% of personal spending is mismatch`,
+          description: `${formatCurrency(reviewSummary.personal.mismatch.amount)} didn't align with your values. That's okay — awareness is the first step. What pattern do you notice?`,
+          severity: "info",
+        });
+      }
+    }
+
+    // High no-ROI rate
+    if (reviewSummary.business.total > 0) {
+      const noRoiPct = Math.round((reviewSummary.business.noRoi.count / reviewSummary.business.total) * 100);
+      if (noRoiPct > 20) {
+        result.push({
+          icon: TrendingDown,
+          title: `${formatCurrency(reviewSummary.business.noRoi.amount)} in No-ROI business spend`,
+          description: `${noRoiPct}% of reviewed business expenses aren't driving returns. Can you cut or renegotiate any of these?`,
+          severity: "info",
+        });
+      }
+    }
+
+    // Unreviewed transactions
+    if (reviewSummary.unreviewedCount > 5) {
+      result.push({
+        icon: ArrowRight,
+        title: `${reviewSummary.unreviewedCount} transactions waiting for review`,
+        description: "Your weekly review keeps you in touch with your money story. It only takes a few minutes.",
+        severity: "info",
+      });
+    }
+
+    // Waterfall overflow (good news)
+    if (waterfallHealth.bufferTarget > 0 && waterfallHealth.checkingBalance > waterfallHealth.bufferTarget * 1.2) {
+      const overflow = waterfallHealth.checkingBalance - waterfallHealth.bufferTarget;
+      result.push({
+        icon: ShieldCheck,
+        title: `${formatCurrency(overflow)} above your buffer — time to waterfall`,
+        description: "Move the excess to working capital, tax savings, or make a debt payment. Don't let it sit in checking.",
+        severity: "success",
+      });
+    }
+
+    return result;
+  }, [waterfallHealth, estimatedMonthlyInterest, totalDebt, accounts, transactions, reviewSummary]);
+
+  const hasReviewData = reviewSummary.business.total > 0 || reviewSummary.personal.total > 0;
 
   return (
     <div className="flex flex-col pb-4 safe-top">
@@ -250,60 +485,127 @@ export default function InsightsPage() {
           </p>
         </div>
 
-        {/* Smart Alerts */}
+        {/* ── Cashflow Waterfall Health ── */}
         <section className="flex flex-col gap-2">
-          <p className="section-label">Smart Alerts</p>
-          {estimatedFees > 0 && (
-            <InsightCard
-              icon={DollarSign}
-              title={`~${formatCurrency(estimatedFees)}/mo in credit card interest`}
-              description={`You're carrying ${formatCurrency(totalCCBalance)} across ${creditCards.length} credit cards. At ~22% APR, that's roughly ${formatCurrency(estimatedFees * 12)}/yr in fees. Pay down the highest-rate card first.`}
-              severity="warning"
-            />
-          )}
-          {accountCount > 6 && (
-            <InsightCard
+          <p className="section-label">Cashflow Waterfall</p>
+          <p className="text-[11px] text-text-tertiary -mt-1 mb-1">
+            Build your safety system: buffer first, then working capital, then taxes.
+          </p>
+          <WaterfallMeter
+            label="Buffer"
+            icon={ShieldCheck}
+            current={waterfallHealth.checkingBalance}
+            target={waterfallHealth.bufferTarget}
+            description="1 month of expenses in checking"
+          />
+          <WaterfallMeter
+            label="Working Capital"
+            icon={Wallet}
+            current={waterfallHealth.wcCurrent}
+            target={waterfallHealth.wcTarget}
+            description="2 months of expenses in savings"
+          />
+          {waterfallHealth.taxTarget > 0 && (
+            <WaterfallMeter
+              label="Tax Savings"
               icon={Building2}
-              title={`${accountCount} accounts might be too many`}
-              description={`Your money is spread across ${accountCount} accounts (${formatCurrency(totalLiquid)} liquid). This can cause overdrafts, missed bills, and makes tracking harder. Consider consolidating.`}
-              severity="warning"
-            />
-          )}
-          {eatingOutSpend > 100 && (
-            <InsightCard
-              icon={Utensils}
-              title={`${formatCurrency(eatingOutSpend)} on eating out`}
-              description="Can you maintain this if your income doesn't increase? Would you do this again? Consider if the quality matched the price."
-              severity="info"
-            />
-          )}
-          {softwareSpend > 50 && (
-            <InsightCard
-              icon={Monitor}
-              title={`${formatCurrency(softwareSpend)} on software subscriptions`}
-              description="Are you getting 5x ROI on each tool? Did you already solve some of these problems but are still paying for the solution?"
-              severity="info"
-            />
-          )}
-          {topRecurring.length > 0 && topRecurring[0].annualProjection && topRecurring[0].annualProjection > 1000 && (
-            <InsightCard
-              icon={RefreshCw}
-              title={`Your top recurring: ${topRecurring[0].merchantName} (${formatCurrency(topRecurring[0].annualProjection)}/yr)`}
-              description="Do you like how frequently you're using this? Can you afford this current frequency if your income doesn't increase?"
-              severity="info"
+              current={waterfallHealth.taxSaved}
+              target={waterfallHealth.taxTarget}
+              description="Estimated quarterly liability"
             />
           )}
         </section>
 
-        {/* Spending Breakdown (Donut) */}
-        <section className="flex flex-col gap-3">
-          <p className="section-label">Spending by Category</p>
-          <div className="rounded-xl border border-border-secondary bg-bg-primary p-5 shadow-sm">
-            <DonutChart segments={donutSegments} size={160} />
-          </div>
-        </section>
+        {/* ── Smart Alerts ── */}
+        {alerts.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <p className="section-label">Smart Alerts</p>
+            {alerts.map((alert, i) => (
+              <InsightCard
+                key={i}
+                icon={alert.icon}
+                title={alert.title}
+                description={alert.description}
+                severity={alert.severity}
+              />
+            ))}
+          </section>
+        )}
 
-        {/* Money Flow */}
+        {/* ── Review Summary ── */}
+        {hasReviewData && (
+          <section className="flex flex-col gap-2">
+            <p className="section-label">Review Summary</p>
+
+            {reviewSummary.business.total > 0 && (
+              <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+                  Business ({reviewSummary.business.total} reviewed)
+                </p>
+                <div className="flex flex-col divide-y divide-border-secondary">
+                  <ReviewBucketRow
+                    icon={TrendingUp}
+                    label="High ROI"
+                    count={reviewSummary.business.highRoi.count}
+                    amount={reviewSummary.business.highRoi.amount}
+                  />
+                  <ReviewBucketRow
+                    icon={TrendingDown}
+                    label="No ROI"
+                    count={reviewSummary.business.noRoi.count}
+                    amount={reviewSummary.business.noRoi.amount}
+                  />
+                  <ReviewBucketRow
+                    icon={HelpCircle}
+                    label="Unsure"
+                    count={reviewSummary.business.unsure.count}
+                    amount={reviewSummary.business.unsure.amount}
+                  />
+                </div>
+              </div>
+            )}
+
+            {reviewSummary.personal.total > 0 && (
+              <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+                  Personal ({reviewSummary.personal.total} reviewed)
+                </p>
+                <div className="flex flex-col divide-y divide-border-secondary">
+                  <ReviewBucketRow
+                    icon={Sparkles}
+                    label="Essential"
+                    count={reviewSummary.personal.essential.count}
+                    amount={reviewSummary.personal.essential.amount}
+                  />
+                  <ReviewBucketRow
+                    icon={Star}
+                    label="Meaningful"
+                    count={reviewSummary.personal.meaningful.count}
+                    amount={reviewSummary.personal.meaningful.amount}
+                  />
+                  <ReviewBucketRow
+                    icon={AlertTriangle}
+                    label="Mismatch"
+                    count={reviewSummary.personal.mismatch.count}
+                    amount={reviewSummary.personal.mismatch.amount}
+                  />
+                </div>
+              </div>
+            )}
+
+            {reviewSummary.unreviewedCount > 0 && (
+              <Link
+                href="/review/business"
+                className="flex items-center justify-center gap-2 rounded-xl bg-bg-secondary py-3 text-[12px] font-semibold text-text-primary transition-colors hover:bg-bg-secondary-hover"
+              >
+                Review {reviewSummary.unreviewedCount} more transactions
+                <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+          </section>
+        )}
+
+        {/* ── Money Flow ── */}
         <section className="flex flex-col gap-2">
           <p className="section-label">Money Flow</p>
           <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-3">
@@ -324,17 +626,45 @@ export default function InsightsPage() {
           </div>
         </section>
 
-        {/* Spending by Day */}
-        <section className="flex flex-col gap-2">
-          <p className="section-label">Spending by Day of Week</p>
-          <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-2">
-            {spendingByDay.map((day) => (
-              <HorizontalBar key={day.label} label={day.label} value={day.value} maxValue={day.maxValue} />
-            ))}
+        {/* ── Spending Breakdown (Donut) ── */}
+        <section className="flex flex-col gap-3">
+          <p className="section-label">Spending by Category</p>
+          <div className="rounded-xl border border-border-secondary bg-bg-primary p-5 shadow-sm">
+            <DonutChart segments={donutSegments} size={160} />
           </div>
         </section>
 
-        {/* Most Expensive Recurring */}
+        {/* ── Debt Stack ── */}
+        {debtAccounts.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <p className="section-label">Debt Stack</p>
+            <p className="text-[11px] text-text-tertiary -mt-1 mb-1">
+              Pay highest-rate first. Total: {formatCurrency(totalDebt)}
+              {estimatedMonthlyInterest > 0 && ` · ~${formatCurrency(estimatedMonthlyInterest)}/mo interest`}
+            </p>
+            <div className="rounded-xl border border-border-secondary bg-bg-primary shadow-sm divide-y divide-border-secondary">
+              {debtAccounts.map((card) => (
+                <div key={card.id} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-bg-secondary">
+                      <CreditCard className="size-4 text-text-secondary" />
+                    </div>
+                    <div className="flex flex-col gap-0">
+                      <p className="text-[13px] font-semibold text-text-primary">{card.name}</p>
+                      <p className="text-[10px] text-text-tertiary">{card.institution} ****{card.lastFour}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-0">
+                    <p className="text-[13px] font-bold text-text-primary tabular-nums">{formatCurrency(Math.abs(card.balance))}</p>
+                    <p className="text-[10px] text-text-tertiary tabular-nums">~${Math.round(Math.abs(card.balance) * 0.22 / 12)}/mo</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Most Expensive Recurring ── */}
         {topRecurring.length > 0 && (
           <section className="flex flex-col gap-2">
             <p className="section-label">Most Expensive Recurring</p>
@@ -362,7 +692,7 @@ export default function InsightsPage() {
           </section>
         )}
 
-        {/* Business Expense Audit */}
+        {/* ── Business Expense Audit ── */}
         <section className="flex flex-col gap-2">
           <p className="section-label">Business Expense Audit</p>
           <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-2.5">
@@ -385,7 +715,7 @@ export default function InsightsPage() {
           </div>
         </section>
 
-        {/* Personal Expense Audit */}
+        {/* ── Personal Expense Audit ── */}
         <section className="flex flex-col gap-2">
           <p className="section-label">Personal Expense Audit</p>
           <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm flex flex-col gap-2.5">
@@ -407,29 +737,6 @@ export default function InsightsPage() {
             ))}
           </div>
         </section>
-
-        {/* Credit Card Stack */}
-        {creditCards.length > 0 && (
-          <section className="flex flex-col gap-2">
-            <p className="section-label">Most Expensive Credit Cards</p>
-            <div className="rounded-xl border border-border-secondary bg-bg-primary shadow-sm divide-y divide-border-secondary">
-              {creditCards
-                .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
-                .map((card) => (
-                  <div key={card.id} className="flex items-center justify-between px-4 py-3">
-                    <div className="flex flex-col gap-0">
-                      <p className="text-[13px] font-semibold text-text-primary">{card.name}</p>
-                      <p className="text-[10px] text-text-tertiary">{card.institution} ****{card.lastFour}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-0">
-                      <p className="text-[13px] font-bold text-text-primary tabular-nums">{formatCurrency(Math.abs(card.balance))}</p>
-                      <p className="text-[10px] text-text-tertiary tabular-nums">~${Math.round(Math.abs(card.balance) * 0.22 / 12)}/mo interest</p>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </section>
-        )}
       </div>
 
       <div className="h-8 safe-bottom" />
