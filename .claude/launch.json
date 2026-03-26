@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sailor-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-p", "3040"],
+      "port": 3040,
+      "cwd": "/Users/a1041383/finance-app/sailor-app"
+    }
+  ]
+}
