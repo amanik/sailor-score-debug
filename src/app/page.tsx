@@ -615,19 +615,24 @@ function PersonalContent() {
       {/* Income */}
       <section className="flex flex-col gap-2">
         <p className="section-label px-1">Income</p>
-        <div className="flex items-center justify-between rounded-xl bg-bg-secondary px-4 py-3">
-          <div className="flex flex-col gap-0.5">
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Cash Received
-            </p>
-            <p className="text-xl font-bold tracking-tighter text-text-primary">
-              {formatCurrency(income)}
-            </p>
+        <Link href="/insights/cashflow-review" className="block group/income">
+          <div className="flex items-center justify-between rounded-xl bg-bg-secondary px-4 py-3 transition-shadow hover:shadow-md">
+            <div className="flex flex-col gap-0.5">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                Cash Received
+              </p>
+              <p className="text-xl font-bold tracking-tighter text-text-primary">
+                {formatCurrency(income)}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-mono text-[10px] text-text-tertiary">
+                Tap to review
+              </p>
+              <ChevronRight className="size-3.5 text-text-quaternary transition-transform group-hover/income:translate-x-0.5" />
+            </div>
           </div>
-          <p className="font-mono text-[10px] text-text-tertiary">
-            Distributions + other
-          </p>
-        </div>
+        </Link>
       </section>
 
       {/* Expenses by Bucket */}
