@@ -175,7 +175,7 @@ function WaterfallBreakdown({
             <div className={`flex items-center gap-2 ${item.href ? "group/bar" : ""}`}>
               <div className="bar-bg flex-1 flex items-center">
                 <div
-                  className={`bar-fill flex items-center justify-between px-2.5 py-1.5 ${item.href ? "transition-opacity hover:opacity-80" : ""}`}
+                  className={`bar-fill flex items-center justify-between px-2.5 py-2.5 ${item.href ? "transition-opacity hover:opacity-80" : ""}`}
                   style={{ width: `${width}%`, minWidth: "fit-content" }}
                 >
                   <span className="font-mono text-[9px] font-medium text-bg-primary whitespace-nowrap">
