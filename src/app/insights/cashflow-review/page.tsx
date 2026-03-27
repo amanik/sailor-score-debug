@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { X, DollarSign, RefreshCcw, Trash2, Undo2 } from "lucide-react";
 import {
   useTransactionStore,
@@ -17,6 +18,7 @@ import { CATEGORIES } from "@/lib/constants";
 type FlowState = "review" | "recategorize" | "done";
 
 export default function CashflowReviewPage() {
+  const router = useRouter();
   const transactions = useTransactionStore((s) => s.transactions);
   const notes = useTransactionStore((s) => s.notes);
   const dispatch = useTransactionDispatch();
@@ -171,9 +173,9 @@ export default function CashflowReviewPage() {
       <div className="flex flex-col gap-4 px-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Link href="/insights" className="text-text-tertiary text-sm">
+          <button onClick={() => router.back()} className="text-text-tertiary text-sm">
             {"\u2190"} Back
-          </Link>
+          </button>
           <p className="section-label">Cashflow Review</p>
           {reviewedLocal.length > 0 && (
             <button

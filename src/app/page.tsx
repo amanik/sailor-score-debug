@@ -2,7 +2,8 @@
 
 import { TabBar } from "@/components/dashboard/TabBar";
 import { ReviewCTA } from "@/components/dashboard/ReviewCTA";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { MonthPicker, getAvailableMonths, filterByMonth } from "@/components/dashboard/MonthPicker";
+import { useMemo, useState, useEffect } from "react";
 import {
   useTransactionStore,
   selectUnreviewedByType,
@@ -439,16 +440,9 @@ function BusinessContent({ monthKey }: { readonly monthKey: string }) {
       accounts.filter(
         (a) =>
           a.type === "business" &&
-          (a.category === "credit_card" ||
-            a.category === "loan" ||
-            a.category === "line_of_credit")
+          (a.category === "loan" || a.category === "line_of_credit")
       ),
     [accounts]
-  );
-
-  const projectBuckets = useMemo(
-    () => selectBucketsByType({ buckets }, "project").filter((b) => b.isActive),
-    [buckets]
   );
 
   return (
@@ -545,17 +539,6 @@ function BusinessContent({ monthKey }: { readonly monthKey: string }) {
         </section>
       )}
 
-      {/* Projects */}
-      {projectBuckets.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <p className="section-label px-1">Projects</p>
-          <div className="flex flex-col gap-1.5">
-            {projectBuckets.map((bucket) => (
-              <BucketCard key={bucket.id} bucket={bucket} />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -621,9 +604,7 @@ function PersonalContent({ monthKey }: { readonly monthKey: string }) {
       accounts.filter(
         (a) =>
           a.type === "personal" &&
-          (a.category === "credit_card" ||
-            a.category === "loan" ||
-            a.category === "line_of_credit")
+          (a.category === "loan" || a.category === "line_of_credit")
       ),
     [accounts]
   );
@@ -726,80 +707,6 @@ function PersonalContent({ monthKey }: { readonly monthKey: string }) {
           </div>
         </section>
       )}
-    </div>
-  );
-}
-
-// ─── Month Utilities ────────────────────────────────────────
-
-function getAvailableMonths(transactions: readonly Transaction[]): readonly { key: string; label: string; shortLabel: string }[] {
-  const monthSet = new Set<string>();
-  for (const t of transactions) {
-    const key = t.date.slice(0, 7); // "2026-02"
-    monthSet.add(key);
-  }
-  return [...monthSet]
-    .sort()
-    .map((key) => {
-      const d = new Date(key + "-15T12:00:00");
-      return {
-        key,
-        label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-        shortLabel: d.toLocaleDateString("en-US", { month: "short" }),
-      };
-    });
-}
-
-function filterByMonth(transactions: readonly Transaction[], monthKey: string): readonly Transaction[] {
-  return transactions.filter((t) => t.date.startsWith(monthKey));
-}
-
-// ─── Month Picker ──────────────────────────────────────────
-
-function MonthPicker({
-  months,
-  selected,
-  onSelect,
-}: {
-  readonly months: readonly { key: string; label: string; shortLabel: string }[];
-  readonly selected: string;
-  readonly onSelect: (key: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    const activeEl = scrollRef.current.querySelector("[data-active=true]");
-    if (activeEl) {
-      activeEl.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-    }
-  }, [selected]);
-
-  if (months.length <= 1) return null;
-
-  return (
-    <div
-      ref={scrollRef}
-      className="flex gap-1.5 overflow-x-auto px-1"
-      style={{ scrollbarWidth: "none" }}
-    >
-      {months.map((m) => {
-        const isActive = m.key === selected;
-        return (
-          <button
-            key={m.key}
-            data-active={isActive}
-            onClick={() => onSelect(m.key)}
-            className={`shrink-0 rounded-full px-3.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wider transition-all duration-200 ${
-              isActive
-                ? "bg-text-primary text-bg-primary"
-                : "bg-bg-secondary text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {m.shortLabel}
-          </button>
-        );
-      })}
     </div>
   );
 }
