@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { X, DollarSign, ArrowRightLeft, Trash2, Undo2 } from "lucide-react";
+import { X, DollarSign, RefreshCcw, Trash2, Undo2 } from "lucide-react";
 import {
   useTransactionStore,
   useTransactionDispatch,
@@ -139,7 +139,7 @@ export default function CashflowReviewPage() {
                 <span className="text-[9px] text-text-tertiary">Confirmed</span>
               </div>
               <div className="card p-3 flex flex-col items-center gap-1">
-                <ArrowRightLeft className="size-5 text-text-secondary" />
+                <RefreshCcw className="size-5 text-text-secondary" />
                 <span className="text-lg font-bold text-text-primary">{stats.recategorized}</span>
                 <span className="text-[9px] text-text-tertiary">Recategorized</span>
               </div>
@@ -197,7 +197,7 @@ export default function CashflowReviewPage() {
               direction={direction}
               onSwipe={handleSwipe}
               rightLabel="Cash Flow"
-              leftLabel="Not This"
+              leftLabel="Recategorize"
               upLabel="Remove"
             />
           </AnimatePresence>
@@ -216,8 +216,8 @@ export default function CashflowReviewPage() {
             onClick={handleNotThis}
             className="flex-1 card p-3 flex flex-col items-center gap-1.5 hover:bg-bg-secondary transition-colors active:scale-95"
           >
-            <ArrowRightLeft className="size-5 text-text-secondary" />
-            <span className="text-[10px] font-bold text-text-primary">Not This</span>
+            <RefreshCcw className="size-5 text-text-secondary" />
+            <span className="text-[10px] font-bold text-text-primary">Recategorize</span>
           </button>
           <button
             onClick={handleRemove}

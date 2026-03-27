@@ -387,6 +387,53 @@ export default function InsightsPage() {
       .slice(0, 5);
   }, [transactions]);
 
+  const recurringData = useMemo(() => {
+    const recurring = transactions.filter(
+      (t) => t.isRecurring && t.amount > 0 && !t.isTransfer
+    );
+
+    // Group by merchant
+    const byMerchant = new Map<string, { name: string; amount: number; category: string; frequency: string; dates: number[] }>();
+    for (const t of recurring) {
+      const key = t.merchantName;
+      const existing = byMerchant.get(key);
+      if (existing) {
+        existing.amount = Math.max(existing.amount, t.amount);
+        const day = new Date(t.date + "T12:00:00").getDate();
+        if (!existing.dates.includes(day)) existing.dates.push(day);
+      } else {
+        byMerchant.set(key, {
+          name: t.merchantName,
+          amount: t.amount,
+          category: t.category,
+          frequency: t.recurringFrequency ?? "monthly",
+          dates: [new Date(t.date + "T12:00:00").getDate()],
+        });
+      }
+    }
+
+    const merchants = [...byMerchant.values()].sort((a, b) => b.amount - a.amount);
+    const monthlyTotal = merchants.reduce((sum, m) => sum + m.amount, 0);
+    const annualTotal = monthlyTotal * 12;
+
+    // Group by category
+    const byCategory = new Map<string, typeof merchants>();
+    for (const m of merchants) {
+      const cat = m.category;
+      const existing = byCategory.get(cat) ?? [];
+      existing.push(m);
+      byCategory.set(cat, existing);
+    }
+
+    // Calendar days with recurring
+    const recurringDays = new Set<number>();
+    for (const m of merchants) {
+      for (const d of m.dates) recurringDays.add(d);
+    }
+
+    return { merchants, monthlyTotal, annualTotal, byCategory: [...byCategory.entries()], recurringDays };
+  }, [transactions]);
+
   // ─── Smart Alerts ────────────────────────────────────────
   const alerts = useMemo(() => {
     const result: Array<{ icon: LucideIcon; title: string; description: string; severity: "info" | "warning" | "success" }> = [];
@@ -685,31 +732,77 @@ export default function InsightsPage() {
           </section>
         )}
 
-        {/* ── Most Expensive Recurring ── */}
-        {topRecurring.length > 0 && (
-          <section className="flex flex-col gap-2">
-            <p className="section-label">Most Expensive Recurring</p>
-            <div className="rounded-xl border border-border-secondary bg-bg-primary shadow-sm divide-y divide-border-secondary">
-              {topRecurring.map((txn) => (
-                <div key={txn.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex size-8 items-center justify-center rounded-lg bg-bg-secondary">
-                      <RefreshCw className="size-4 text-text-secondary" />
-                    </div>
-                    <div className="flex flex-col gap-0">
-                      <p className="text-[13px] font-semibold text-text-primary">{txn.merchantName}</p>
-                      <p className="text-[10px] text-text-tertiary">{txn.recurringFrequency}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-0">
-                    <p className="text-[13px] font-bold text-text-primary tabular-nums">${txn.amount.toFixed(2)}</p>
-                    {txn.annualProjection && (
-                      <p className="text-[10px] text-text-tertiary tabular-nums">{formatCurrency(txn.annualProjection)}/yr</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+        {/* ── Recurring Expenses ── */}
+        {recurringData.merchants.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="section-label">Recurring Expenses</p>
+              <p className="text-[10px] text-text-tertiary tabular-nums">
+                {formatCurrency(recurringData.monthlyTotal)}/mo · {formatCurrency(recurringData.annualTotal)}/yr
+              </p>
             </div>
+
+            {/* Mini Calendar */}
+            <div className="rounded-xl border border-border-secondary bg-bg-primary p-4 shadow-sm">
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                  <p key={`${d}-${i}`} className="text-[9px] font-mono font-semibold text-text-quaternary uppercase pb-1">
+                    {d}
+                  </p>
+                ))}
+                {/* Offset for first day — approximate with 5 blank cells for Feb 2026 (starts Sun) */}
+                {Array.from({ length: 31 }, (_, i) => {
+                  const day = i + 1;
+                  const hasRecurring = recurringData.recurringDays.has(day);
+                  return (
+                    <div
+                      key={day}
+                      className={`flex items-center justify-center rounded-md py-1 ${
+                        hasRecurring
+                          ? "bg-text-primary text-bg-primary"
+                          : "text-text-tertiary"
+                      }`}
+                    >
+                      <span className="text-[10px] font-mono tabular-nums font-medium">
+                        {day}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Grouped by category */}
+            {recurringData.byCategory.map(([category, items]) => (
+              <div key={category} className="flex flex-col gap-1">
+                <p className="text-[10px] font-mono font-semibold uppercase tracking-wider text-text-quaternary px-1">
+                  {category}
+                </p>
+                <div className="rounded-xl border border-border-secondary bg-bg-primary shadow-sm divide-y divide-border-secondary">
+                  {items.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-8 items-center justify-center rounded-lg bg-bg-secondary">
+                          <RefreshCw className="size-4 text-text-secondary" />
+                        </div>
+                        <div className="flex flex-col gap-0">
+                          <p className="text-[13px] font-semibold text-text-primary">{item.name}</p>
+                          <p className="text-[10px] text-text-tertiary">{item.frequency}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-0">
+                        <p className="text-[13px] font-bold text-text-primary tabular-nums">
+                          {formatCurrency(item.amount)}
+                        </p>
+                        <p className="text-[10px] text-text-tertiary tabular-nums">
+                          {formatCurrency(item.amount * 12)}/yr
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </section>
         )}
 

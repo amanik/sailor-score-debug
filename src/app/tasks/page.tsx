@@ -458,6 +458,40 @@ export default function TasksPage() {
       });
     }
 
+    // Profit → debt paydown
+    const bizIncome = transactions.filter(
+      (t) =>
+        bizAccountIds.includes(t.accountId) && t.amount < 0 && !t.isTransfer
+    );
+    const totalRevenue = Math.abs(
+      bizIncome.reduce((sum, t) => sum + t.amount, 0)
+    );
+    const taxBucketsList = buckets.filter(
+      (b) => b.isActive && b.name.toLowerCase().includes("tax")
+    );
+    const totalTaxes = taxBucketsList.reduce(
+      (sum, b) => sum + b.current,
+      0
+    );
+    const profit = totalRevenue - monthlyExpenses - totalTaxes;
+    if (
+      profit > 0 &&
+      totalDebt > 0 &&
+      bufferTarget > 0 &&
+      checkingBalance >= bufferTarget
+    ) {
+      const topDebt = [...debtAccounts].sort(
+        (a, b) => Math.abs(b.balance) - Math.abs(a.balance)
+      )[0];
+      result.push({
+        id: "profit-to-debt",
+        icon: CreditCard,
+        title: `Put ${formatCurrency(Math.round(profit * 0.5))} of profit toward ${topDebt?.name ?? "debt"}`,
+        description: `You made money this month. Let's put it to work.`,
+        priority: "medium",
+      });
+    }
+
     // Biz/personal bleed
     const personalOnBiz = transactions.filter(
       (t) =>

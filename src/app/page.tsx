@@ -2,7 +2,7 @@
 
 import { TabBar } from "@/components/dashboard/TabBar";
 import { ReviewCTA } from "@/components/dashboard/ReviewCTA";
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   useTransactionStore,
   selectUnreviewedByType,
@@ -25,11 +25,13 @@ import {
   Star,
   AlertTriangle,
   Eye,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { Bucket } from "@/data/buckets";
+import type { Transaction } from "@/data/transactions";
 import { formatCurrency } from "@/lib/format";
 
 // ─── Shared Components ──────────────────────────────────────
@@ -130,17 +132,29 @@ function DebtRow({
   readonly balance: number;
   readonly lastFour: string;
 }) {
+  const absBalance = Math.abs(balance);
+  const monthlyInterest = Math.round(absBalance * 0.22 / 12);
   return (
-    <div className="flex items-center justify-between py-2.5">
-      <div className="flex flex-col gap-0">
+    <div className="flex items-center gap-3 py-3">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-bg-secondary">
+        <CreditCard className="size-4 text-text-secondary" />
+      </div>
+      <div className="flex flex-1 min-w-0 flex-col gap-0">
         <p className="text-[13px] font-semibold text-text-primary">{name}</p>
         <p className="text-[10px] text-text-tertiary">
           {institution} ****{lastFour}
         </p>
       </div>
-      <p className="text-[13px] font-bold tracking-tight text-text-primary tabular-nums">
-        {formatCurrency(Math.abs(balance))}
-      </p>
+      <div className="flex flex-col items-end gap-0">
+        <p className="text-[13px] font-bold tracking-tight text-text-primary tabular-nums">
+          {formatCurrency(absBalance)}
+        </p>
+        {monthlyInterest > 0 && (
+          <p className="text-[9px] text-text-quaternary tabular-nums">
+            ~{formatCurrency(monthlyInterest)}/mo
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -360,11 +374,16 @@ function PersonalBucketList({ accountIds }: { readonly accountIds: readonly stri
 
 // ─── Business Tab ──────────────────────────────────────────
 
-function BusinessContent() {
-  const transactions = useTransactionStore((s) => s.transactions);
+function BusinessContent({ monthKey }: { readonly monthKey: string }) {
+  const allTransactions = useTransactionStore((s) => s.transactions);
   const notes = useTransactionStore((s) => s.notes);
   const accounts = useAccountStore((s) => s.accounts);
   const buckets = useBucketStore((s) => s.buckets);
+
+  const transactions = useMemo(
+    () => filterByMonth(allTransactions, monthKey),
+    [allTransactions, monthKey]
+  );
 
   const businessAccountIds = useMemo(
     () => accounts.filter((a) => a.type === "business").map((a) => a.id),
@@ -543,11 +562,16 @@ function BusinessContent() {
 
 // ─── Personal Tab ──────────────────────────────────────────
 
-function PersonalContent() {
-  const transactions = useTransactionStore((s) => s.transactions);
+function PersonalContent({ monthKey }: { readonly monthKey: string }) {
+  const allTransactions = useTransactionStore((s) => s.transactions);
   const notes = useTransactionStore((s) => s.notes);
   const accounts = useAccountStore((s) => s.accounts);
   const buckets = useBucketStore((s) => s.buckets);
+
+  const transactions = useMemo(
+    () => filterByMonth(allTransactions, monthKey),
+    [allTransactions, monthKey]
+  );
 
   const personalAccountIds = useMemo(
     () => accounts.filter((a) => a.type === "personal").map((a) => a.id),
@@ -706,47 +730,129 @@ function PersonalContent() {
   );
 }
 
-// ─── Dashboard ─────────────────────────────────────────────
+// ─── Month Utilities ────────────────────────────────────────
 
-function useDashboardMonth(): string {
-  const transactions = useTransactionStore((s) => s.transactions);
-  return useMemo(() => {
-    if (transactions.length === 0) return "Dashboard";
-    const sorted = [...transactions].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    const latest = new Date(sorted[0].date + "T12:00:00");
-    return latest.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
+function getAvailableMonths(transactions: readonly Transaction[]): readonly { key: string; label: string; shortLabel: string }[] {
+  const monthSet = new Set<string>();
+  for (const t of transactions) {
+    const key = t.date.slice(0, 7); // "2026-02"
+    monthSet.add(key);
+  }
+  return [...monthSet]
+    .sort()
+    .map((key) => {
+      const d = new Date(key + "-15T12:00:00");
+      return {
+        key,
+        label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        shortLabel: d.toLocaleDateString("en-US", { month: "short" }),
+      };
     });
-  }, [transactions]);
 }
 
+function filterByMonth(transactions: readonly Transaction[], monthKey: string): readonly Transaction[] {
+  return transactions.filter((t) => t.date.startsWith(monthKey));
+}
+
+// ─── Month Picker ──────────────────────────────────────────
+
+function MonthPicker({
+  months,
+  selected,
+  onSelect,
+}: {
+  readonly months: readonly { key: string; label: string; shortLabel: string }[];
+  readonly selected: string;
+  readonly onSelect: (key: string) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const activeEl = scrollRef.current.querySelector("[data-active=true]");
+    if (activeEl) {
+      activeEl.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    }
+  }, [selected]);
+
+  if (months.length <= 1) return null;
+
+  return (
+    <div
+      ref={scrollRef}
+      className="flex gap-1.5 overflow-x-auto px-1"
+      style={{ scrollbarWidth: "none" }}
+    >
+      {months.map((m) => {
+        const isActive = m.key === selected;
+        return (
+          <button
+            key={m.key}
+            data-active={isActive}
+            onClick={() => onSelect(m.key)}
+            className={`shrink-0 rounded-full px-3.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wider transition-all duration-200 ${
+              isActive
+                ? "bg-text-primary text-bg-primary"
+                : "bg-bg-secondary text-text-tertiary hover:text-text-secondary"
+            }`}
+          >
+            {m.shortLabel}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Dashboard ─────────────────────────────────────────────
+
 export default function DashboardPage() {
-  const monthLabel = useDashboardMonth();
+  const allTransactions = useTransactionStore((s) => s.transactions);
+
+  const months = useMemo(() => getAvailableMonths(allTransactions), [allTransactions]);
+  const latestMonth = months.length > 0 ? months[months.length - 1].key : "";
+  const [selectedMonth, setSelectedMonth] = useState(latestMonth);
+
+  // Keep selected month in sync if new data arrives
+  useEffect(() => {
+    if (months.length > 0 && !months.some((m) => m.key === selectedMonth)) {
+      setSelectedMonth(months[months.length - 1].key);
+    }
+  }, [months, selectedMonth]);
+
+  const monthLabel = useMemo(() => {
+    const found = months.find((m) => m.key === selectedMonth);
+    return found?.label ?? "Dashboard";
+  }, [months, selectedMonth]);
 
   return (
     <div className="flex flex-col pb-4 safe-top">
       <div className="h-[60px]" />
 
       <div className="flex flex-col gap-4 px-3">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex flex-col gap-0.5">
-            <p className="font-mono text-[9px] font-semibold uppercase tracking-widest text-text-quaternary">
-              Sailor
-            </p>
-            <h1 className="text-lg font-bold tracking-tight text-text-primary">
-              {monthLabel}
-            </h1>
+        <div className="flex flex-col gap-2.5 px-1">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <p className="font-mono text-[9px] font-semibold uppercase tracking-widest text-text-quaternary">
+                Sailor
+              </p>
+              <h1 className="text-lg font-bold tracking-tight text-text-primary">
+                {monthLabel}
+              </h1>
+            </div>
           </div>
+          <MonthPicker
+            months={months}
+            selected={selectedMonth}
+            onSelect={setSelectedMonth}
+          />
         </div>
 
         <TabBar
           defaultTab="Business"
           children={{
-            Business: <BusinessContent />,
-            Personal: <PersonalContent />,
+            Business: <BusinessContent monthKey={selectedMonth} />,
+            Personal: <PersonalContent monthKey={selectedMonth} />,
           }}
         />
       </div>
