@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,14 +14,30 @@ import type { Transaction } from "@/data/transactions";
 import { ExpenseCard } from "@/components/review/ExpenseCard";
 import { ProgressBar } from "@/components/review/ProgressBar";
 import { CATEGORIES } from "@/lib/constants";
+import { MonthPicker, getAvailableMonths, filterByMonth } from "@/components/dashboard/MonthPicker";
 
 type FlowState = "review" | "recategorize" | "done";
 
 export default function CashflowReviewPage() {
   const router = useRouter();
-  const transactions = useTransactionStore((s) => s.transactions);
+  const allTransactions = useTransactionStore((s) => s.transactions);
   const notes = useTransactionStore((s) => s.notes);
   const dispatch = useTransactionDispatch();
+
+  // ─── Month Picker ──────────────────────────────────────────
+  const allCashflow = useMemo(
+    () => selectCashFlow({ transactions: allTransactions, notes }),
+    [allTransactions, notes]
+  );
+  const months = useMemo(() => getAvailableMonths(allCashflow), [allCashflow]);
+  const latestMonth = months.length > 0 ? months[months.length - 1].key : "";
+  const [selectedMonth, setSelectedMonth] = useState(latestMonth);
+
+  useEffect(() => {
+    if (months.length > 0 && !months.some((m) => m.key === selectedMonth)) {
+      setSelectedMonth(months[months.length - 1].key);
+    }
+  }, [months, selectedMonth]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flowState, setFlowState] = useState<FlowState>("review");
@@ -29,9 +45,20 @@ export default function CashflowReviewPage() {
   const [stats, setStats] = useState({ confirmed: 0, recategorized: 0, removed: 0 });
   const [reviewedLocal, setReviewedLocal] = useState<Array<{ txn: Transaction; action: string }>>([]);
 
-  const [txnSnapshot] = useState(() => [
-    ...selectCashFlow({ transactions, notes }),
-  ]);
+  const txnSnapshot = useMemo(
+    () => filterByMonth(allCashflow, selectedMonth) as Transaction[],
+    [allCashflow, selectedMonth]
+  );
+
+  // Reset index when month changes
+  useEffect(() => {
+    setCurrentIndex(0);
+    setFlowState("review");
+    setDirection(null);
+    setStats({ confirmed: 0, recategorized: 0, removed: 0 });
+    setReviewedLocal([]);
+  }, [selectedMonth]);
+
   const current = txnSnapshot[currentIndex] as Transaction | undefined;
   const total = txnSnapshot.length;
 
@@ -187,6 +214,8 @@ export default function CashflowReviewPage() {
             </button>
           )}
         </div>
+
+        <MonthPicker months={months} selected={selectedMonth} onSelect={setSelectedMonth} />
 
         <ProgressBar current={currentIndex + 1} total={total} />
 
