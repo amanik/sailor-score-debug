@@ -172,7 +172,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_01",
     date: "2026-02-03",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - 1:1 COACHING",
     amount: -3_200.00,
@@ -185,7 +185,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_02",
     date: "2026-02-10",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - GROUP PROGRAM",
     amount: -2_400.00,
@@ -198,7 +198,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_03",
     date: "2026-02-14",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - COURSE SALES",
     amount: -1_847.00,
@@ -211,7 +211,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_04",
     date: "2026-02-20",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - 1:1 COACHING",
     amount: -1_600.00,
@@ -238,7 +238,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_06",
     date: "2026-02-07",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - COURSE SALES",
     amount: -297.00,
@@ -251,7 +251,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_inc_07",
     date: "2026-02-18",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - COURSE SALES",
     amount: -594.00,
@@ -1506,7 +1506,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_jan_inc_01",
     date: "2026-01-06",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - 1:1 COACHING",
     amount: -3_200.00,
@@ -1519,7 +1519,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_jan_inc_02",
     date: "2026-01-13",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - GROUP PROGRAM",
     amount: -2_400.00,
@@ -1532,7 +1532,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_jan_inc_03",
     date: "2026-01-22",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - COURSE SALES",
     amount: -1_150.00,
@@ -1545,7 +1545,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_jan_inc_04",
     date: "2026-01-28",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - 1:1 COACHING",
     amount: -1_600.00,
@@ -1818,7 +1818,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_mar_inc_01",
     date: "2026-03-02",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - 1:1 COACHING",
     amount: -3_200.00,
@@ -1831,7 +1831,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_mar_inc_02",
     date: "2026-03-10",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - GROUP PROGRAM",
     amount: -2_400.00,
@@ -1844,7 +1844,7 @@ export const transactions: readonly Transaction[] = [
   {
     id: "txn_mar_inc_03",
     date: "2026-03-18",
-    merchantName: "Stripe",
+    merchantName: "Stripe · JR Coaching",
     merchantLogo: "💳",
     rawDescription: "STRIPE TRANSFER - COURSE SALES",
     amount: -980.00,

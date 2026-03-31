@@ -34,6 +34,22 @@ export interface CompletenessResult {
   readonly meetsMinimum: boolean;
 }
 
+export interface ScoredTransaction {
+  readonly txn: Transaction;
+  readonly qualityScore: number; // 0-100
+  readonly dollarWeight: number; // abs(amount)
+}
+
+export interface PillarDetail {
+  readonly totalIncome: number;
+  readonly totalSpend: number;
+  readonly liquidAssets: number;
+  readonly runwayMonths: number;
+  readonly reviewCoverage: number;
+  readonly scoredTransactions: readonly ScoredTransaction[];
+  readonly liquidAccounts: readonly Account[];
+}
+
 export interface SpendingScoreResult {
   readonly total: number; // 0-100 composite
   readonly band: ScoreBand;
@@ -45,6 +61,7 @@ export interface SpendingScoreResult {
     readonly balanceRatio: PillarResult;
   };
   readonly completeness: CompletenessResult;
+  readonly detail: PillarDetail;
 }
 
 export interface SpendingScoreInput {
@@ -120,6 +137,24 @@ function getBand(score: number) {
   return BAND_CONFIG[BAND_CONFIG.length - 1];
 }
 
+function formatSpendRatioLabel(ratio: number, totalSpend: number, totalIncome: number): string {
+  if (totalIncome === 0) return "No income recorded this month.";
+
+  const fmtSpend = `$${Math.round(totalSpend).toLocaleString()}`;
+  const fmtIncome = `$${Math.round(totalIncome).toLocaleString()}`;
+
+  if (ratio <= 0.5) {
+    return `Spending ${fmtSpend} of ${fmtIncome} earned — less than half.`;
+  }
+  if (ratio <= 1.0) {
+    const pct = Math.round(ratio * 100);
+    return `Spending ${fmtSpend} of ${fmtIncome} earned (${pct}%).`;
+  }
+  // Over-spending: ratio > 1.0
+  const overBy = Math.round(totalSpend - totalIncome);
+  return `Spending ${fmtSpend} against ${fmtIncome} earned — $${overBy.toLocaleString()} over.`;
+}
+
 // ─── Pillar 1: Spend-to-Income Ratio ──────────────────────────
 
 export function calcSpendToIncomeScore(spendRatio: number): number {
@@ -134,7 +169,7 @@ export function calcSpendToIncomeScore(spendRatio: number): number {
 
 // ─── Pillar 2: Qualitative Transaction Reviews ────────────────
 
-function txnQualityScore(txn: Transaction): number {
+export function txnQualityScore(txn: Transaction): number {
   // Business buckets
   if (txn.businessBucket === "high_roi") {
     return (txn.roiRating ?? 5) * 10;
@@ -269,10 +304,7 @@ export function calcSpendingScore(
   const spendToIncomePillar: PillarResult = {
     score: spendToIncomeScore,
     rawValue: spendRatio,
-    label:
-      totalIncome > 0
-        ? `You spent ${Math.round(spendRatio * 100)} cents of every dollar earned.`
-        : "No income recorded this month.",
+    label: formatSpendRatioLabel(spendRatio, totalSpend, totalIncome),
   };
 
   // --- Pillar 2: Qualitative Reviews ---
@@ -329,6 +361,19 @@ export function calcSpendingScore(
         : "No spending recorded this month.",
   };
 
+  // --- Scored transactions for detail view ---
+  const scoredTransactions: ScoredTransaction[] = allExpenses
+    .filter((t) => t.reviewed)
+    .map((txn) => ({
+      txn,
+      qualityScore: txnQualityScore(txn),
+      dollarWeight: Math.abs(txn.amount),
+    }));
+
+  const liquidAccounts = accounts.filter(
+    (a) => LIQUID_ACCOUNT_CATEGORIES.has(a.category) && a.balance > 0
+  );
+
   // --- Composite ---
   const total = Math.round(
     spendToIncomeScore * 0.4 +
@@ -349,5 +394,14 @@ export function calcSpendingScore(
       balanceRatio: balanceRatioPillar,
     },
     completeness,
+    detail: {
+      totalIncome,
+      totalSpend,
+      liquidAssets,
+      runwayMonths: Number.isFinite(runwayMonths) ? runwayMonths : 0,
+      reviewCoverage,
+      scoredTransactions,
+      liquidAccounts,
+    },
   };
 }

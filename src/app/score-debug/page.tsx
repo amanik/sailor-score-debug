@@ -1,8 +1,30 @@
 "use client";
 
-import { calcSpendingScore, type SpendingScoreResult } from "@/lib/spending-score";
+import { useState } from "react";
+import {
+  calcSpendingScore,
+  type SpendingScoreResult,
+  type ScoredTransaction,
+} from "@/lib/spending-score";
 import { scoreSamples, type ScoreSample } from "@/data/spending-score-samples";
-import { transactions as seedTransactions, accounts as seedAccounts } from "@/data/transactions";
+import {
+  transactions as seedTransactions,
+  accounts as seedAccounts,
+  type Account,
+} from "@/data/transactions";
+
+// ─── Currency formatter ────────────────────────────────────────
+
+function fmt(n: number): string {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
+// ─── Expandable Score Card ─────────────────────────────────────
 
 function ScoreCard({
   title,
@@ -17,81 +39,126 @@ function ScoreCard({
   expectedScore?: number;
   source?: "synthetic" | "real_pnl";
 }) {
-  const { total, bandLabel, bandMessage, pillars, completeness } = result;
+  const [expanded, setExpanded] = useState(false);
+  const { total, bandLabel, bandMessage, pillars, completeness, detail } =
+    result;
 
   return (
-    <div className="border border-border-primary rounded-lg p-4 space-y-3">
-      <div className="flex items-baseline justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="font-medium text-sm">{title}</h3>
-          {source === "real_pnl" && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border-primary text-text-tertiary">
-              real data
+    <div className="border border-border-primary rounded-lg overflow-hidden">
+      {/* Header — always visible, clickable */}
+      <button
+        type="button"
+        className="w-full p-4 text-left space-y-3"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="flex items-baseline justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-sm">{title}</h3>
+            {source === "real_pnl" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-border-primary text-text-tertiary">
+                real data
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl tabular-nums">{total}</span>
+            <span className="text-xs text-text-secondary">{bandLabel}</span>
+            <span className="text-xs text-text-tertiary">
+              {expanded ? "▲" : "▼"}
             </span>
-          )}
+          </div>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-2xl tabular-nums">{total}</span>
-          <span className="text-xs text-text-secondary">{bandLabel}</span>
+
+        <p className="text-xs text-text-secondary">{description}</p>
+        <p className="text-xs italic text-text-tertiary">{bandMessage}</p>
+
+        {expectedScore !== undefined && (
+          <p className="text-xs text-text-secondary">
+            Expected: ~{expectedScore} | Delta: {total - expectedScore}
+          </p>
+        )}
+
+        {/* Pillar summary */}
+        <div className="space-y-1.5 pt-2 border-t border-border-primary">
+          <PillarRow
+            name="Spend / Income"
+            weight="40%"
+            score={pillars.spendToIncome.score}
+            label={pillars.spendToIncome.label}
+          />
+          <PillarRow
+            name="Review Quality"
+            weight="20%"
+            score={pillars.qualitative.score}
+            label={pillars.qualitative.label}
+          />
+          <PillarRow
+            name="Balance / Spend"
+            weight="40%"
+            score={pillars.balanceRatio.score}
+            label={pillars.balanceRatio.label}
+          />
         </div>
-      </div>
 
-      <p className="text-xs text-text-secondary">{description}</p>
-      <p className="text-xs italic text-text-tertiary">{bandMessage}</p>
+        {/* Completeness warnings */}
+        {!completeness.meetsMinimum && (
+          <div className="pt-2 border-t border-border-primary text-xs text-text-secondary space-y-0.5">
+            <p className="font-medium">Incomplete:</p>
+            {!completeness.hasBusinessAccount && (
+              <p>- Missing business account</p>
+            )}
+            {!completeness.hasPersonalAccount && (
+              <p>- Missing personal account</p>
+            )}
+            {!completeness.hasIncome && <p>- No income this month</p>}
+            {completeness.reviewPercentage < 0.5 && (
+              <p>
+                - Only {Math.round(completeness.reviewPercentage * 100)}%
+                reviewed (need 50%)
+              </p>
+            )}
+          </div>
+        )}
 
-      {expectedScore !== undefined && (
-        <p className="text-xs text-text-secondary">
-          Expected: ~{expectedScore} | Delta: {total - expectedScore}
-        </p>
-      )}
-
-      {/* Pillar breakdown */}
-      <div className="space-y-1.5 pt-2 border-t border-border-primary">
-        <PillarRow
-          name="Spend / Income"
-          weight="40%"
-          score={pillars.spendToIncome.score}
-          label={pillars.spendToIncome.label}
-        />
-        <PillarRow
-          name="Review Quality"
-          weight="20%"
-          score={pillars.qualitative.score}
-          label={pillars.qualitative.label}
-        />
-        <PillarRow
-          name="Balance / Spend"
-          weight="40%"
-          score={pillars.balanceRatio.score}
-          label={pillars.balanceRatio.label}
-        />
-      </div>
-
-      {/* Completeness */}
-      {!completeness.meetsMinimum && (
-        <div className="pt-2 border-t border-border-primary text-xs text-text-secondary space-y-0.5">
-          <p className="font-medium">Incomplete:</p>
-          {!completeness.hasBusinessAccount && <p>- Missing business account</p>}
-          {!completeness.hasPersonalAccount && <p>- Missing personal account</p>}
-          {!completeness.hasIncome && <p>- No income this month</p>}
-          {completeness.reviewPercentage < 0.5 && (
-            <p>
-              - Only {Math.round(completeness.reviewPercentage * 100)}% reviewed
-              (need 50%)
+        {completeness.reviewPercentage < 0.8 &&
+          completeness.reviewPercentage >= 0.5 && (
+            <p className="text-xs text-text-secondary pt-1">
+              Based on {Math.round(completeness.reviewPercentage * 100)}% of
+              transactions reviewed.
             </p>
           )}
-        </div>
-      )}
+      </button>
 
-      {completeness.reviewPercentage < 0.8 && completeness.reviewPercentage >= 0.5 && (
-        <p className="text-xs text-text-secondary pt-1">
-          Based on {Math.round(completeness.reviewPercentage * 100)}% of
-          transactions reviewed.
-        </p>
+      {/* Expanded detail — tables */}
+      {expanded && (
+        <div className="border-t border-border-primary bg-bg-secondary p-4 space-y-5">
+          {/* Score formula */}
+          <FormulaBreakdown pillars={pillars} total={total} />
+
+          {/* Pillar 1 detail */}
+          <Pillar1Detail detail={detail} />
+
+          {/* Pillar 2 detail — transaction table */}
+          <Pillar2Detail
+            scoredTxns={detail.scoredTransactions}
+            reviewCoverage={detail.reviewCoverage}
+            pillarScore={pillars.qualitative.score}
+          />
+
+          {/* Pillar 3 detail — account balances */}
+          <Pillar3Detail
+            liquidAccounts={detail.liquidAccounts}
+            liquidAssets={detail.liquidAssets}
+            totalSpend={detail.totalSpend}
+            runwayMonths={detail.runwayMonths}
+          />
+        </div>
       )}
     </div>
   );
 }
+
+// ─── Pillar summary row ────────────────────────────────────────
 
 function PillarRow({
   name,
@@ -113,10 +180,254 @@ function PillarRow({
       <span className="font-mono tabular-nums shrink-0 w-8 text-right">
         {Math.round(score)}
       </span>
-      <span className="text-text-tertiary truncate">{label}</span>
+      <span className="text-text-tertiary">{label}</span>
     </div>
   );
 }
+
+// ─── Formula breakdown ─────────────────────────────────────────
+
+function FormulaBreakdown({
+  pillars,
+  total,
+}: {
+  pillars: SpendingScoreResult["pillars"];
+  total: number;
+}) {
+  const p1 = Math.round(pillars.spendToIncome.score);
+  const p2 = Math.round(pillars.qualitative.score);
+  const p3 = Math.round(pillars.balanceRatio.score);
+
+  return (
+    <div>
+      <h4 className="text-xs font-medium text-text-secondary mb-1">
+        Score Formula
+      </h4>
+      <p className="font-mono text-xs text-text-tertiary">
+        ({p1} × 0.4) + ({p2} × 0.2) + ({p3} × 0.4) ={" "}
+        <span className="text-text-primary font-medium">{total}</span>
+      </p>
+    </div>
+  );
+}
+
+// ─── Pillar 1: Spend vs Income detail ──────────────────────────
+
+function Pillar1Detail({ detail }: { detail: SpendingScoreResult["detail"] }) {
+  const { totalIncome, totalSpend } = detail;
+  const ratio = totalIncome > 0 ? totalSpend / totalIncome : 0;
+
+  return (
+    <div>
+      <h4 className="text-xs font-medium text-text-secondary mb-2">
+        Pillar 1: Spend vs Income
+      </h4>
+      <table className="w-full text-xs">
+        <tbody className="divide-y divide-border-primary">
+          <tr>
+            <td className="py-1 text-text-secondary">Total Income</td>
+            <td className="py-1 font-mono tabular-nums text-right">
+              {fmt(totalIncome)}
+            </td>
+          </tr>
+          <tr>
+            <td className="py-1 text-text-secondary">
+              Total Spend{" "}
+              <span className="text-text-tertiary">
+                (excl. taxes, debt, distributions)
+              </span>
+            </td>
+            <td className="py-1 font-mono tabular-nums text-right">
+              {fmt(totalSpend)}
+            </td>
+          </tr>
+          <tr>
+            <td className="py-1 text-text-secondary">Spend Ratio</td>
+            <td className="py-1 font-mono tabular-nums text-right">
+              {totalIncome > 0 ? `${Math.round(ratio * 100)}%` : "N/A"}
+            </td>
+          </tr>
+          {totalSpend > totalIncome && totalIncome > 0 && (
+            <tr>
+              <td className="py-1 text-text-secondary">Overspend</td>
+              <td className="py-1 font-mono tabular-nums text-right text-red-400">
+                {fmt(totalSpend - totalIncome)}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Pillar 2: Transaction quality table ───────────────────────
+
+function Pillar2Detail({
+  scoredTxns,
+  reviewCoverage,
+  pillarScore,
+}: {
+  scoredTxns: readonly ScoredTransaction[];
+  reviewCoverage: number;
+  pillarScore: number;
+}) {
+  // Sort by dollar weight descending
+  const sorted = [...scoredTxns].sort((a, b) => b.dollarWeight - a.dollarWeight);
+  const totalWeight = sorted.reduce((s, t) => s + t.dollarWeight, 0);
+
+  // Raw weighted avg (before penalty)
+  const rawAvg =
+    totalWeight > 0
+      ? sorted.reduce((s, t) => s + t.qualityScore * t.dollarWeight, 0) /
+        totalWeight
+      : 0;
+  const penalty = reviewCoverage < 0.8 ? reviewCoverage / 0.8 : 1.0;
+
+  return (
+    <div>
+      <h4 className="text-xs font-medium text-text-secondary mb-2">
+        Pillar 2: Review Quality{" "}
+        <span className="font-normal text-text-tertiary">
+          ({sorted.length} reviewed, {Math.round(reviewCoverage * 100)}%
+          coverage)
+        </span>
+      </h4>
+
+      {sorted.length > 0 ? (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-text-tertiary text-left">
+                  <th className="py-1 pr-2 font-normal">Transaction</th>
+                  <th className="py-1 pr-2 font-normal">Bucket</th>
+                  <th className="py-1 pr-2 font-normal text-right">Amount</th>
+                  <th className="py-1 pr-2 font-normal text-right">Rating</th>
+                  <th className="py-1 font-normal text-right">Quality</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-primary">
+                {sorted.map((st) => {
+                  const bucket =
+                    st.txn.businessBucket ?? st.txn.personalBucket ?? "—";
+                  const rating =
+                    st.txn.roiRating ?? st.txn.meaningRating ?? "—";
+                  return (
+                    <tr key={st.txn.id}>
+                      <td className="py-1 pr-2 text-text-secondary max-w-[140px] truncate">
+                        {st.txn.merchantName}
+                      </td>
+                      <td className="py-1 pr-2 text-text-tertiary">
+                        {bucket}
+                      </td>
+                      <td className="py-1 pr-2 font-mono tabular-nums text-right">
+                        {fmt(st.dollarWeight)}
+                      </td>
+                      <td className="py-1 pr-2 font-mono tabular-nums text-right">
+                        {rating}
+                      </td>
+                      <td className="py-1 font-mono tabular-nums text-right">
+                        {Math.round(st.qualityScore)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary */}
+          <div className="mt-2 pt-2 border-t border-border-primary text-xs space-y-1">
+            <p className="text-text-secondary">
+              Weighted avg (raw):{" "}
+              <span className="font-mono">{rawAvg.toFixed(1)}</span>/100
+            </p>
+            {penalty < 1 && (
+              <p className="text-text-secondary">
+                Review penalty: ×{penalty.toFixed(2)}{" "}
+                <span className="text-text-tertiary">
+                  ({Math.round(reviewCoverage * 100)}% / 80% threshold)
+                </span>
+              </p>
+            )}
+            <p className="text-text-secondary">
+              Final pillar score:{" "}
+              <span className="font-mono font-medium">
+                {Math.round(pillarScore)}
+              </span>
+            </p>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-text-tertiary italic">
+          No reviewed transactions.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Pillar 3: Account balances ────────────────────────────────
+
+function Pillar3Detail({
+  liquidAccounts,
+  liquidAssets,
+  totalSpend,
+  runwayMonths,
+}: {
+  liquidAccounts: readonly Account[];
+  liquidAssets: number;
+  totalSpend: number;
+  runwayMonths: number;
+}) {
+  return (
+    <div>
+      <h4 className="text-xs font-medium text-text-secondary mb-2">
+        Pillar 3: Financial Cushion
+      </h4>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-text-tertiary text-left">
+            <th className="py-1 pr-2 font-normal">Account</th>
+            <th className="py-1 pr-2 font-normal">Type</th>
+            <th className="py-1 font-normal text-right">Balance</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-primary">
+          {liquidAccounts.map((a) => (
+            <tr key={a.id}>
+              <td className="py-1 pr-2 text-text-secondary">{a.name}</td>
+              <td className="py-1 pr-2 text-text-tertiary">
+                {a.type} / {a.category}
+              </td>
+              <td className="py-1 font-mono tabular-nums text-right">
+                {fmt(a.balance)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="mt-2 pt-2 border-t border-border-primary text-xs space-y-1">
+        <p className="text-text-secondary">
+          Liquid assets: <span className="font-mono">{fmt(liquidAssets)}</span>
+        </p>
+        <p className="text-text-secondary">
+          Monthly spend: <span className="font-mono">{fmt(totalSpend)}</span>
+        </p>
+        <p className="text-text-secondary">
+          Runway:{" "}
+          <span className="font-mono font-medium">
+            {runwayMonths.toFixed(1)} months
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────
 
 export default function ScoreDebugPage() {
   const jordanResult = calcSpendingScore({
@@ -152,11 +463,11 @@ export default function ScoreDebugPage() {
       <div>
         <h1 className="text-lg font-medium">Spending Score — Debug</h1>
         <p className="text-xs text-text-secondary mt-1">
-          Algorithm validation view. Not for production.
+          Tap any card to see full data breakdown.
         </p>
       </div>
 
-      {/* Jordan Rivera — live seed data */}
+      {/* Jordan Rivera */}
       <div>
         <h2 className="text-sm font-medium text-text-secondary mb-2">
           Live: Jordan Rivera (seed data)
