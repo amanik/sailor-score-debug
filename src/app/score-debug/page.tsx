@@ -294,6 +294,46 @@ function Pillar2Detail({
         </span>
       </h4>
 
+      {/* How it works explanation */}
+      <div className="text-xs text-text-tertiary bg-bg-primary border border-border-primary rounded p-3 space-y-2 mb-3">
+        <p className="font-medium text-text-secondary">How the weighted average works</p>
+        <p>
+          Each transaction gets a <span className="font-mono">quality score</span> (0–100)
+          based on its bucket and rating. Bigger expenses count more — a $3,000 rent
+          payment has 10× the influence of a $300 subscription.
+        </p>
+        <p>
+          <span className="font-medium text-text-secondary">Formula:</span>{" "}
+          <span className="font-mono">Σ (quality × amount) / Σ (amount)</span>
+        </p>
+        <p>
+          Each row's <span className="font-mono">Weight</span> column shows what % of total
+          spending that transaction represents. <span className="font-mono">Contrib.</span>{" "}
+          shows how many points it adds to the weighted average
+          (quality × weight%).
+        </p>
+        <div className="border-t border-border-primary pt-2 mt-1 space-y-1">
+          <p className="font-medium text-text-secondary">Quality score rules:</p>
+          <p>• <span className="font-mono">high_roi</span> → rating × 10 (e.g. 8/10 = 80)</p>
+          <p>• <span className="font-mono">unsure</span> → rating × 5 (e.g. 5/10 = 25)</p>
+          <p>• <span className="font-mono">no_roi</span> → 0 (always)</p>
+          <p>• <span className="font-mono">essential</span> → 70 (fixed)</p>
+          <p>• <span className="font-mono">meaningful</span> → rating × 10</p>
+          <p>• <span className="font-mono">mismatch</span> → 10 (fixed)</p>
+        </div>
+        {reviewCoverage < 0.8 && (
+          <div className="border-t border-border-primary pt-2 mt-1">
+            <p className="font-medium text-text-secondary">Review coverage penalty:</p>
+            <p>
+              When less than 80% of transactions are reviewed, the score is reduced
+              proportionally: <span className="font-mono">score × (coverage / 0.8)</span>.
+              At {Math.round(reviewCoverage * 100)}% coverage, penalty
+              = <span className="font-mono">×{penalty.toFixed(2)}</span>.
+            </p>
+          </div>
+        )}
+      </div>
+
       {sorted.length > 0 ? (
         <>
           <div className="overflow-x-auto">
@@ -305,6 +345,8 @@ function Pillar2Detail({
                   <th className="py-1 pr-2 font-normal text-right">Amount</th>
                   <th className="py-1 pr-2 font-normal text-right">Rating</th>
                   <th className="py-1 font-normal text-right">Quality</th>
+                  <th className="py-1 font-normal text-right">Weight</th>
+                  <th className="py-1 font-normal text-right">Contrib.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-primary">
@@ -313,6 +355,14 @@ function Pillar2Detail({
                     st.txn.businessBucket ?? st.txn.personalBucket ?? "—";
                   const rating =
                     st.txn.roiRating ?? st.txn.meaningRating ?? "—";
+                  const weightPct =
+                    totalWeight > 0
+                      ? (st.dollarWeight / totalWeight) * 100
+                      : 0;
+                  const contribution =
+                    totalWeight > 0
+                      ? (st.qualityScore * st.dollarWeight) / totalWeight
+                      : 0;
                   return (
                     <tr key={st.txn.id}>
                       <td className="py-1 pr-2 text-text-secondary max-w-[140px] truncate">
@@ -330,6 +380,12 @@ function Pillar2Detail({
                       <td className="py-1 font-mono tabular-nums text-right">
                         {Math.round(st.qualityScore)}
                       </td>
+                      <td className="py-1 font-mono tabular-nums text-right text-text-tertiary">
+                        {weightPct.toFixed(0)}%
+                      </td>
+                      <td className="py-1 font-mono tabular-nums text-right text-text-tertiary">
+                        {contribution.toFixed(1)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -337,25 +393,65 @@ function Pillar2Detail({
             </table>
           </div>
 
-          {/* Summary */}
-          <div className="mt-2 pt-2 border-t border-border-primary text-xs space-y-1">
+          {/* Step-by-step math */}
+          <div className="mt-2 pt-2 border-t border-border-primary text-xs space-y-1.5">
+            <p className="font-medium text-text-secondary">Calculation steps:</p>
             <p className="text-text-secondary">
-              Weighted avg (raw):{" "}
-              <span className="font-mono">{rawAvg.toFixed(1)}</span>/100
+              1. Sum of (quality × amount):{" "}
+              <span className="font-mono">
+                {Math.round(
+                  sorted.reduce(
+                    (s, t) => s + t.qualityScore * t.dollarWeight,
+                    0
+                  )
+                ).toLocaleString()}
+              </span>
             </p>
-            {penalty < 1 && (
+            <p className="text-text-secondary">
+              2. Sum of amounts:{" "}
+              <span className="font-mono">
+                {fmt(totalWeight)}
+              </span>
+            </p>
+            <p className="text-text-secondary">
+              3. Weighted average:{" "}
+              <span className="font-mono">
+                {Math.round(
+                  sorted.reduce(
+                    (s, t) => s + t.qualityScore * t.dollarWeight,
+                    0
+                  )
+                ).toLocaleString()}{" "}
+                / {fmt(totalWeight)} ={" "}
+                {rawAvg.toFixed(1)}
+              </span>
+              /100
+            </p>
+            {penalty < 1 ? (
               <p className="text-text-secondary">
-                Review penalty: ×{penalty.toFixed(2)}{" "}
+                4. Review penalty:{" "}
+                <span className="font-mono">
+                  {rawAvg.toFixed(1)} × {penalty.toFixed(2)}
+                </span>{" "}
                 <span className="text-text-tertiary">
-                  ({Math.round(reviewCoverage * 100)}% / 80% threshold)
+                  ({Math.round(reviewCoverage * 100)}% coverage / 80% threshold)
+                </span>
+                {" "}={" "}
+                <span className="font-mono font-medium">
+                  {Math.round(pillarScore)}
                 </span>
               </p>
+            ) : (
+              <p className="text-text-secondary">
+                4. No penalty (coverage ≥ 80%)
+              </p>
             )}
-            <p className="text-text-secondary">
-              Final pillar score:{" "}
-              <span className="font-mono font-medium">
+            <p className="text-text-secondary font-medium pt-1 border-t border-border-primary">
+              Pillar 2 score:{" "}
+              <span className="font-mono text-text-primary">
                 {Math.round(pillarScore)}
               </span>
+              /100
             </p>
           </div>
         </>
