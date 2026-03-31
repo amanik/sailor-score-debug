@@ -572,62 +572,23 @@ function escapeCsv(val: string | number): string {
     : s;
 }
 
-function buildSummaryCsv(personas: readonly PersonaRow[]): string {
+function buildCsv(personas: readonly PersonaRow[]): string {
   const header = [
+    // Persona-level
     "Persona",
     "Source",
-    "Score",
+    "Overall Score",
     "Band",
-    "P1 Spend/Income Score",
+    "P1 Spend/Income",
     "P1 Spend Ratio",
-    "P1 Total Income",
-    "P1 Total Spend",
-    "P2 Quality Score",
+    "P1 Income",
+    "P1 Spend",
+    "P2 Quality",
     "P2 Review Coverage",
-    "P2 Rated Txns",
-    "P2 Unrated Txns",
-    "P3 Balance Score",
+    "P3 Balance",
     "P3 Liquid Assets",
-    "P3 Monthly Spend",
     "P3 Runway Months",
-  ];
-
-  const rows = personas.map((p) => {
-    const { result: r } = p;
-    const rated = r.detail.scoredTransactions.filter(
-      (t) => t.qualityScore != null
-    );
-    const unrated = r.detail.scoredTransactions.filter(
-      (t) => t.qualityScore == null
-    );
-    return [
-      p.name,
-      p.source,
-      r.total,
-      r.bandLabel,
-      Math.round(r.pillars.spendToIncome.score),
-      r.detail.totalIncome > 0
-        ? (r.detail.totalSpend / r.detail.totalIncome).toFixed(2)
-        : "N/A",
-      Math.round(r.detail.totalIncome),
-      Math.round(r.detail.totalSpend),
-      Math.round(r.pillars.qualitative.score),
-      `${Math.round(r.detail.reviewCoverage * 100)}%`,
-      rated.length,
-      unrated.length,
-      Math.round(r.pillars.balanceRatio.score),
-      Math.round(r.detail.liquidAssets),
-      Math.round(r.detail.totalSpend),
-      r.detail.runwayMonths.toFixed(1),
-    ].map(escapeCsv);
-  });
-
-  return [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
-}
-
-function buildDetailCsv(personas: readonly PersonaRow[]): string {
-  const header = [
-    "Persona",
+    // Transaction-level
     "Transaction",
     "Category",
     "Bucket",
@@ -635,7 +596,7 @@ function buildDetailCsv(personas: readonly PersonaRow[]): string {
     "ROI Rating",
     "Meaning Rating",
     "Quality Score",
-    "Quality Explanation",
+    "How Scored",
     "Dollar Weight %",
     "Contribution",
     "Rated?",
@@ -649,20 +610,53 @@ function buildDetailCsv(personas: readonly PersonaRow[]): string {
       (t) => t.qualityScore != null
     );
     const ratedWeight = rated.reduce((s, t) => s + t.dollarWeight, 0);
+    const spendRatio =
+      r.detail.totalIncome > 0
+        ? (r.detail.totalSpend / r.detail.totalIncome).toFixed(2)
+        : "N/A";
 
-    for (const st of r.detail.scoredTransactions) {
+    const personaCols = [
+      p.name,
+      p.source,
+      r.total,
+      r.bandLabel,
+      Math.round(r.pillars.spendToIncome.score),
+      spendRatio,
+      Math.round(r.detail.totalIncome),
+      Math.round(r.detail.totalSpend),
+      Math.round(r.pillars.qualitative.score),
+      `${Math.round(r.detail.reviewCoverage * 100)}%`,
+      Math.round(r.pillars.balanceRatio.score),
+      Math.round(r.detail.liquidAssets),
+      r.detail.runwayMonths.toFixed(1),
+    ];
+
+    if (r.detail.scoredTransactions.length === 0) {
+      // Persona with no transactions — one row, empty txn columns
+      rows.push(
+        [...personaCols, "", "", "", "", "", "", "", "", "", "", ""].map(
+          escapeCsv
+        )
+      );
+      continue;
+    }
+
+    for (const st of [...r.detail.scoredTransactions].sort(
+      (a, b) => b.dollarWeight - a.dollarWeight
+    )) {
       const bucket =
         st.txn.businessBucket ?? st.txn.personalBucket ?? "";
       const isRated = st.qualityScore != null;
       const weightPct =
         isRated && ratedWeight > 0
-          ? ((st.dollarWeight / ratedWeight) * 100).toFixed(1)
+          ? ((st.dollarWeight / ratedWeight) * 100).toFixed(1) + "%"
           : "";
       const contrib =
         isRated && ratedWeight > 0
-          ? (((st.qualityScore ?? 0) * st.dollarWeight) / ratedWeight).toFixed(
-              1
-            )
+          ? (
+              ((st.qualityScore ?? 0) * st.dollarWeight) /
+              ratedWeight
+            ).toFixed(1)
           : "";
 
       const explain = (() => {
@@ -686,7 +680,7 @@ function buildDetailCsv(personas: readonly PersonaRow[]): string {
 
       rows.push(
         [
-          p.name,
+          ...personaCols,
           st.txn.merchantName,
           st.txn.category,
           bucket,
@@ -695,7 +689,7 @@ function buildDetailCsv(personas: readonly PersonaRow[]): string {
           st.txn.meaningRating ?? "",
           isRated ? Math.round(st.qualityScore ?? 0) : "",
           explain,
-          weightPct ? `${weightPct}%` : "",
+          weightPct,
           contrib,
           isRated ? "yes" : "no",
         ].map(escapeCsv)
@@ -761,11 +755,8 @@ export default function ScoreDebugPage() {
     })),
   ];
 
-  const handleDownloadSummary = () =>
-    downloadCsv(buildSummaryCsv(allPersonas), "spending-score-summary.csv");
-
-  const handleDownloadDetail = () =>
-    downloadCsv(buildDetailCsv(allPersonas), "spending-score-transactions.csv");
+  const handleDownload = () =>
+    downloadCsv(buildCsv(allPersonas), "spending-score-debug.csv");
 
   return (
     <div className="p-4 space-y-6">
@@ -776,22 +767,13 @@ export default function ScoreDebugPage() {
             Tap any card to see full data breakdown.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleDownloadSummary}
-            className="text-[11px] px-2.5 py-1.5 rounded border border-border-primary text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors"
-          >
-            Summary CSV
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadDetail}
-            className="text-[11px] px-2.5 py-1.5 rounded border border-border-primary text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors"
-          >
-            Transactions CSV
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="text-[11px] px-2.5 py-1.5 rounded border border-border-primary text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors shrink-0"
+        >
+          Export CSV
+        </button>
       </div>
 
       {/* Jordan Rivera */}
