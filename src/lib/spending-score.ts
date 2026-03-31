@@ -36,7 +36,7 @@ export interface CompletenessResult {
 
 export interface ScoredTransaction {
   readonly txn: Transaction;
-  readonly qualityScore: number; // 0-100
+  readonly qualityScore: number | null; // 0-100, null = unrated
   readonly dollarWeight: number; // abs(amount)
 }
 
@@ -169,13 +169,18 @@ export function calcSpendToIncomeScore(spendRatio: number): number {
 
 // ─── Pillar 2: Qualitative Transaction Reviews ────────────────
 
-export function txnQualityScore(txn: Transaction): number {
+/**
+ * Returns a quality score for a reviewed transaction, or null if the
+ * transaction is bucketed but still needs a rating (e.g. "unsure" or
+ * "meaningful" without a rating). Null means "exclude from average."
+ */
+export function txnQualityScore(txn: Transaction): number | null {
   // Business buckets
   if (txn.businessBucket === "high_roi") {
-    return (txn.roiRating ?? 5) * 10;
+    return txn.roiRating != null ? txn.roiRating * 10 : null;
   }
   if (txn.businessBucket === "unsure") {
-    return (txn.roiRating ?? 5) * 5;
+    return txn.roiRating != null ? txn.roiRating * 5 : null;
   }
   if (txn.businessBucket === "no_roi") {
     return 0;
@@ -185,7 +190,7 @@ export function txnQualityScore(txn: Transaction): number {
     return 70;
   }
   if (txn.personalBucket === "meaningful") {
-    return (txn.meaningRating ?? 5) * 10;
+    return txn.meaningRating != null ? txn.meaningRating * 10 : null;
   }
   if (txn.personalBucket === "mismatch") {
     return 10;
@@ -204,8 +209,10 @@ export function calcQualitativeScore(
   let totalWeight = 0;
 
   for (const txn of reviewedExpenses) {
+    const score = txnQualityScore(txn);
+    if (score == null) continue; // unrated — exclude from average
     const weight = Math.abs(txn.amount);
-    weightedSum += weight * txnQualityScore(txn);
+    weightedSum += weight * score;
     totalWeight += weight;
   }
 
@@ -324,8 +331,10 @@ export function calcSpendingScore(
     let wSum = 0;
     let wTotal = 0;
     for (const txn of reviewedExpenses) {
+      const score = txnQualityScore(txn);
+      if (score == null) continue;
       const w = Math.abs(txn.amount);
-      wSum += w * txnQualityScore(txn);
+      wSum += w * score;
       wTotal += w;
     }
     rawWeightedAvg = wTotal > 0 ? wSum / wTotal / 10 : 0;

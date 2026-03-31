@@ -274,13 +274,15 @@ function Pillar2Detail({
 }) {
   // Sort by dollar weight descending
   const sorted = [...scoredTxns].sort((a, b) => b.dollarWeight - a.dollarWeight);
-  const totalWeight = sorted.reduce((s, t) => s + t.dollarWeight, 0);
+  const rated = sorted.filter((t) => t.qualityScore != null);
+  const unrated = sorted.filter((t) => t.qualityScore == null);
+  const ratedWeight = rated.reduce((s, t) => s + t.dollarWeight, 0);
 
-  // Raw weighted avg (before penalty)
+  // Raw weighted avg (before penalty) — only rated transactions
   const rawAvg =
-    totalWeight > 0
-      ? sorted.reduce((s, t) => s + t.qualityScore * t.dollarWeight, 0) /
-        totalWeight
+    ratedWeight > 0
+      ? rated.reduce((s, t) => s + (t.qualityScore ?? 0) * t.dollarWeight, 0) /
+        ratedWeight
       : 0;
   const penalty = reviewCoverage < 0.8 ? reviewCoverage / 0.8 : 1.0;
 
@@ -320,6 +322,7 @@ function Pillar2Detail({
           <p>• <span className="font-mono">essential</span> → 70 (fixed)</p>
           <p>• <span className="font-mono">meaningful</span> → rating × 10</p>
           <p>• <span className="font-mono">mismatch</span> → 10 (fixed)</p>
+          <p className="pt-1">Buckets that need a rating (high_roi, unsure, meaningful) are <span className="font-medium text-text-secondary">excluded from the average</span> until rated — they don't help or hurt.</p>
         </div>
         {reviewCoverage < 0.8 && (
           <div className="border-t border-border-primary pt-2 mt-1">
@@ -354,26 +357,27 @@ function Pillar2Detail({
                     st.txn.businessBucket ?? st.txn.personalBucket ?? "—";
                   const rating =
                     st.txn.roiRating ?? st.txn.meaningRating ?? null;
+                  const isRated = st.qualityScore != null;
                   const weightPct =
-                    totalWeight > 0
-                      ? (st.dollarWeight / totalWeight) * 100
+                    isRated && ratedWeight > 0
+                      ? (st.dollarWeight / ratedWeight) * 100
                       : 0;
                   const contribution =
-                    totalWeight > 0
-                      ? (st.qualityScore * st.dollarWeight) / totalWeight
+                    isRated && ratedWeight > 0
+                      ? ((st.qualityScore ?? 0) * st.dollarWeight) / ratedWeight
                       : 0;
 
                   // Build a human-readable quality explanation
                   const qualityExplain = (() => {
                     if (st.txn.businessBucket === "high_roi")
-                      return `${rating ?? 5}/10 × 10`;
+                      return rating != null ? `${rating}/10 × 10` : "needs rating";
                     if (st.txn.businessBucket === "unsure")
-                      return `${rating ?? 5}/10 × 5`;
+                      return rating != null ? `${rating}/10 × 5` : "needs rating";
                     if (st.txn.businessBucket === "no_roi") return "fixed 0";
                     if (st.txn.personalBucket === "essential")
                       return "fixed 70";
                     if (st.txn.personalBucket === "meaningful")
-                      return `${rating ?? 5}/10 × 10`;
+                      return rating != null ? `${rating}/10 × 10` : "needs rating";
                     if (st.txn.personalBucket === "mismatch")
                       return "fixed 10";
                     return "neutral";
@@ -391,16 +395,24 @@ function Pillar2Detail({
                         {fmt(st.dollarWeight)}
                       </td>
                       <td className="py-1 font-mono tabular-nums text-right">
-                        <span>{Math.round(st.qualityScore)}</span>
-                        <span className="text-text-tertiary ml-1 text-[10px]">
-                          ({qualityExplain})
-                        </span>
+                        {isRated ? (
+                          <>
+                            <span>{Math.round(st.qualityScore ?? 0)}</span>
+                            <span className="text-text-tertiary ml-1 text-[10px]">
+                              ({qualityExplain})
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-text-tertiary italic text-[10px]">
+                            {qualityExplain}
+                          </span>
+                        )}
                       </td>
                       <td className="py-1 font-mono tabular-nums text-right text-text-tertiary">
-                        {weightPct.toFixed(0)}%
+                        {isRated ? `${weightPct.toFixed(0)}%` : "—"}
                       </td>
                       <td className="py-1 font-mono tabular-nums text-right text-text-tertiary">
-                        {contribution.toFixed(1)}
+                        {isRated ? contribution.toFixed(1) : "—"}
                       </td>
                     </tr>
                   );
@@ -412,33 +424,39 @@ function Pillar2Detail({
           {/* Step-by-step math */}
           <div className="mt-2 pt-2 border-t border-border-primary text-xs space-y-1.5">
             <p className="font-medium text-text-secondary">Calculation steps:</p>
+            {unrated.length > 0 && (
+              <p className="text-text-tertiary italic">
+                {unrated.length} transaction{unrated.length > 1 ? "s" : ""} excluded
+                (bucketed but not yet rated)
+              </p>
+            )}
             <p className="text-text-secondary">
               1. Sum of (quality × amount):{" "}
               <span className="font-mono">
                 {Math.round(
-                  sorted.reduce(
-                    (s, t) => s + t.qualityScore * t.dollarWeight,
+                  rated.reduce(
+                    (s, t) => s + (t.qualityScore ?? 0) * t.dollarWeight,
                     0
                   )
                 ).toLocaleString()}
               </span>
             </p>
             <p className="text-text-secondary">
-              2. Sum of amounts:{" "}
+              2. Sum of rated amounts:{" "}
               <span className="font-mono">
-                {fmt(totalWeight)}
+                {fmt(ratedWeight)}
               </span>
             </p>
             <p className="text-text-secondary">
               3. Weighted average:{" "}
               <span className="font-mono">
                 {Math.round(
-                  sorted.reduce(
-                    (s, t) => s + t.qualityScore * t.dollarWeight,
+                  rated.reduce(
+                    (s, t) => s + (t.qualityScore ?? 0) * t.dollarWeight,
                     0
                   )
                 ).toLocaleString()}{" "}
-                / {fmt(totalWeight)} ={" "}
+                / {fmt(ratedWeight)} ={" "}
                 {rawAvg.toFixed(1)}
               </span>
               /100
