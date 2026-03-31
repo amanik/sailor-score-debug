@@ -343,7 +343,6 @@ function Pillar2Detail({
                   <th className="py-1 pr-2 font-normal">Transaction</th>
                   <th className="py-1 pr-2 font-normal">Bucket</th>
                   <th className="py-1 pr-2 font-normal text-right">Amount</th>
-                  <th className="py-1 pr-2 font-normal text-right">Rating</th>
                   <th className="py-1 font-normal text-right">Quality</th>
                   <th className="py-1 font-normal text-right">Weight</th>
                   <th className="py-1 font-normal text-right">Contrib.</th>
@@ -354,7 +353,7 @@ function Pillar2Detail({
                   const bucket =
                     st.txn.businessBucket ?? st.txn.personalBucket ?? "—";
                   const rating =
-                    st.txn.roiRating ?? st.txn.meaningRating ?? "—";
+                    st.txn.roiRating ?? st.txn.meaningRating ?? null;
                   const weightPct =
                     totalWeight > 0
                       ? (st.dollarWeight / totalWeight) * 100
@@ -363,6 +362,23 @@ function Pillar2Detail({
                     totalWeight > 0
                       ? (st.qualityScore * st.dollarWeight) / totalWeight
                       : 0;
+
+                  // Build a human-readable quality explanation
+                  const qualityExplain = (() => {
+                    if (st.txn.businessBucket === "high_roi")
+                      return `${rating ?? 5}/10 × 10`;
+                    if (st.txn.businessBucket === "unsure")
+                      return `${rating ?? 5}/10 × 5`;
+                    if (st.txn.businessBucket === "no_roi") return "fixed 0";
+                    if (st.txn.personalBucket === "essential")
+                      return "fixed 70";
+                    if (st.txn.personalBucket === "meaningful")
+                      return `${rating ?? 5}/10 × 10`;
+                    if (st.txn.personalBucket === "mismatch")
+                      return "fixed 10";
+                    return "neutral";
+                  })();
+
                   return (
                     <tr key={st.txn.id}>
                       <td className="py-1 pr-2 text-text-secondary max-w-[140px] truncate">
@@ -374,11 +390,11 @@ function Pillar2Detail({
                       <td className="py-1 pr-2 font-mono tabular-nums text-right">
                         {fmt(st.dollarWeight)}
                       </td>
-                      <td className="py-1 pr-2 font-mono tabular-nums text-right">
-                        {rating}
-                      </td>
                       <td className="py-1 font-mono tabular-nums text-right">
-                        {Math.round(st.qualityScore)}
+                        <span>{Math.round(st.qualityScore)}</span>
+                        <span className="text-text-tertiary ml-1 text-[10px]">
+                          ({qualityExplain})
+                        </span>
                       </td>
                       <td className="py-1 font-mono tabular-nums text-right text-text-tertiary">
                         {weightPct.toFixed(0)}%
