@@ -557,6 +557,165 @@ function Pillar3Detail({
   );
 }
 
+// ─── CSV Export ─────────────────────────────────────────────────
+
+interface PersonaRow {
+  readonly name: string;
+  readonly source: string;
+  readonly result: SpendingScoreResult;
+}
+
+function escapeCsv(val: string | number): string {
+  const s = String(val);
+  return s.includes(",") || s.includes('"') || s.includes("\n")
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}
+
+function buildSummaryCsv(personas: readonly PersonaRow[]): string {
+  const header = [
+    "Persona",
+    "Source",
+    "Score",
+    "Band",
+    "P1 Spend/Income Score",
+    "P1 Spend Ratio",
+    "P1 Total Income",
+    "P1 Total Spend",
+    "P2 Quality Score",
+    "P2 Review Coverage",
+    "P2 Rated Txns",
+    "P2 Unrated Txns",
+    "P3 Balance Score",
+    "P3 Liquid Assets",
+    "P3 Monthly Spend",
+    "P3 Runway Months",
+  ];
+
+  const rows = personas.map((p) => {
+    const { result: r } = p;
+    const rated = r.detail.scoredTransactions.filter(
+      (t) => t.qualityScore != null
+    );
+    const unrated = r.detail.scoredTransactions.filter(
+      (t) => t.qualityScore == null
+    );
+    return [
+      p.name,
+      p.source,
+      r.total,
+      r.bandLabel,
+      Math.round(r.pillars.spendToIncome.score),
+      r.detail.totalIncome > 0
+        ? (r.detail.totalSpend / r.detail.totalIncome).toFixed(2)
+        : "N/A",
+      Math.round(r.detail.totalIncome),
+      Math.round(r.detail.totalSpend),
+      Math.round(r.pillars.qualitative.score),
+      `${Math.round(r.detail.reviewCoverage * 100)}%`,
+      rated.length,
+      unrated.length,
+      Math.round(r.pillars.balanceRatio.score),
+      Math.round(r.detail.liquidAssets),
+      Math.round(r.detail.totalSpend),
+      r.detail.runwayMonths.toFixed(1),
+    ].map(escapeCsv);
+  });
+
+  return [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
+}
+
+function buildDetailCsv(personas: readonly PersonaRow[]): string {
+  const header = [
+    "Persona",
+    "Transaction",
+    "Category",
+    "Bucket",
+    "Amount",
+    "ROI Rating",
+    "Meaning Rating",
+    "Quality Score",
+    "Quality Explanation",
+    "Dollar Weight %",
+    "Contribution",
+    "Rated?",
+  ];
+
+  const rows: string[][] = [];
+
+  for (const p of personas) {
+    const { result: r } = p;
+    const rated = r.detail.scoredTransactions.filter(
+      (t) => t.qualityScore != null
+    );
+    const ratedWeight = rated.reduce((s, t) => s + t.dollarWeight, 0);
+
+    for (const st of r.detail.scoredTransactions) {
+      const bucket =
+        st.txn.businessBucket ?? st.txn.personalBucket ?? "";
+      const isRated = st.qualityScore != null;
+      const weightPct =
+        isRated && ratedWeight > 0
+          ? ((st.dollarWeight / ratedWeight) * 100).toFixed(1)
+          : "";
+      const contrib =
+        isRated && ratedWeight > 0
+          ? (((st.qualityScore ?? 0) * st.dollarWeight) / ratedWeight).toFixed(
+              1
+            )
+          : "";
+
+      const explain = (() => {
+        if (st.txn.businessBucket === "high_roi")
+          return st.txn.roiRating != null
+            ? `${st.txn.roiRating}/10 × 10`
+            : "needs rating";
+        if (st.txn.businessBucket === "unsure")
+          return st.txn.roiRating != null
+            ? `${st.txn.roiRating}/10 × 5`
+            : "needs rating";
+        if (st.txn.businessBucket === "no_roi") return "fixed 0";
+        if (st.txn.personalBucket === "essential") return "fixed 70";
+        if (st.txn.personalBucket === "meaningful")
+          return st.txn.meaningRating != null
+            ? `${st.txn.meaningRating}/10 × 10`
+            : "needs rating";
+        if (st.txn.personalBucket === "mismatch") return "fixed 10";
+        return "neutral";
+      })();
+
+      rows.push(
+        [
+          p.name,
+          st.txn.merchantName,
+          st.txn.category,
+          bucket,
+          Math.round(st.dollarWeight),
+          st.txn.roiRating ?? "",
+          st.txn.meaningRating ?? "",
+          isRated ? Math.round(st.qualityScore ?? 0) : "",
+          explain,
+          weightPct ? `${weightPct}%` : "",
+          contrib,
+          isRated ? "yes" : "no",
+        ].map(escapeCsv)
+      );
+    }
+  }
+
+  return [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
+}
+
+function downloadCsv(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Page ──────────────────────────────────────────────────────
 
 export default function ScoreDebugPage() {
@@ -588,13 +747,51 @@ export default function ScoreDebugPage() {
       );
     });
 
+  // Build persona list for CSV export
+  const allPersonas: PersonaRow[] = [
+    { name: "Jordan Rivera", source: "seed", result: jordanResult },
+    ...scoreSamples.map((s) => ({
+      name: s.name,
+      source: s.source,
+      result: calcSpendingScore({
+        transactions: s.transactions,
+        accounts: s.accounts,
+        monthKey: s.monthKey,
+      }),
+    })),
+  ];
+
+  const handleDownloadSummary = () =>
+    downloadCsv(buildSummaryCsv(allPersonas), "spending-score-summary.csv");
+
+  const handleDownloadDetail = () =>
+    downloadCsv(buildDetailCsv(allPersonas), "spending-score-transactions.csv");
+
   return (
     <div className="p-4 space-y-6">
-      <div>
-        <h1 className="text-lg font-medium">Spending Score — Debug</h1>
-        <p className="text-xs text-text-secondary mt-1">
-          Tap any card to see full data breakdown.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-medium">Spending Score — Debug</h1>
+          <p className="text-xs text-text-secondary mt-1">
+            Tap any card to see full data breakdown.
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleDownloadSummary}
+            className="text-[11px] px-2.5 py-1.5 rounded border border-border-primary text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors"
+          >
+            Summary CSV
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadDetail}
+            className="text-[11px] px-2.5 py-1.5 rounded border border-border-primary text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors"
+          >
+            Transactions CSV
+          </button>
+        </div>
       </div>
 
       {/* Jordan Rivera */}
