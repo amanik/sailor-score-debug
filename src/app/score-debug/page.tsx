@@ -24,43 +24,45 @@ function fmt(n: number): string {
   });
 }
 
-// ─── Color helpers ─────────────────────────────────────────────
+// ─── Color helpers (inline styles — Tailwind can't detect dynamic classes) ──
 
-/** Band → left border + score text color */
-function bandColor(band: string): { border: string; text: string; bg: string } {
-  switch (band) {
-    case "Thriving":
-      return { border: "border-l-emerald-500", text: "text-emerald-400", bg: "bg-emerald-500/10" };
-    case "Building":
-      return { border: "border-l-sky-500", text: "text-sky-400", bg: "bg-sky-500/10" };
-    case "Awakening":
-      return { border: "border-l-amber-500", text: "text-amber-400", bg: "bg-amber-500/10" };
-    case "Stretching":
-      return { border: "border-l-orange-500", text: "text-orange-400", bg: "bg-orange-500/10" };
-    case "Surviving":
-      return { border: "border-l-red-500", text: "text-red-400", bg: "bg-red-500/10" };
-    default:
-      return { border: "border-l-zinc-500", text: "text-zinc-400", bg: "bg-zinc-500/10" };
-  }
+const BAND_COLORS: Record<string, { border: string; text: string; bg: string }> = {
+  Thriving:   { border: "#10b981", text: "#34d399", bg: "rgba(16,185,129,0.10)" },
+  Building:   { border: "#0ea5e9", text: "#38bdf8", bg: "rgba(14,165,233,0.10)" },
+  Awakening:  { border: "#f59e0b", text: "#fbbf24", bg: "rgba(245,158,11,0.10)" },
+  Stretching: { border: "#f97316", text: "#fb923c", bg: "rgba(249,115,22,0.10)" },
+  Surviving:  { border: "#ef4444", text: "#f87171", bg: "rgba(239,68,68,0.10)" },
+};
+const DEFAULT_BAND = { border: "#71717a", text: "#a1a1aa", bg: "rgba(113,113,122,0.10)" };
+
+function bandStyles(band: string) {
+  return BAND_COLORS[band] ?? DEFAULT_BAND;
 }
 
-/** Score 0–100 → inline color for pillar scores */
-function scoreColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-sky-400";
-  if (score >= 40) return "text-amber-400";
-  if (score >= 20) return "text-orange-400";
-  return "text-red-400";
+function scoreHex(score: number): string {
+  if (score >= 80) return "#34d399"; // emerald-400
+  if (score >= 60) return "#38bdf8"; // sky-400
+  if (score >= 40) return "#fbbf24"; // amber-400
+  if (score >= 20) return "#fb923c"; // orange-400
+  return "#f87171"; // red-400
 }
 
-/** Score 0–100 → bar fill color */
-function barColor(score: number): string {
-  if (score >= 80) return "bg-emerald-500";
-  if (score >= 60) return "bg-sky-500";
-  if (score >= 40) return "bg-amber-500";
-  if (score >= 20) return "bg-orange-500";
-  return "bg-red-500";
+function barHex(score: number): string {
+  if (score >= 80) return "#10b981";
+  if (score >= 60) return "#0ea5e9";
+  if (score >= 40) return "#f59e0b";
+  if (score >= 20) return "#f97316";
+  return "#ef4444";
 }
+
+const BUCKET_COLORS: Record<string, { bg: string; text: string }> = {
+  high_roi:    { bg: "rgba(16,185,129,0.15)", text: "#34d399" },
+  essential:   { bg: "rgba(14,165,233,0.15)", text: "#38bdf8" },
+  meaningful:  { bg: "rgba(139,92,246,0.15)", text: "#a78bfa" },
+  unsure:      { bg: "rgba(245,158,11,0.15)", text: "#fbbf24" },
+  no_roi:      { bg: "rgba(239,68,68,0.15)",  text: "#f87171" },
+  mismatch:    { bg: "rgba(249,115,22,0.15)", text: "#fb923c" },
+};
 
 // ─── Expandable Score Card ─────────────────────────────────────
 
@@ -80,10 +82,13 @@ function ScoreCard({
   const [expanded, setExpanded] = useState(false);
   const { total, bandLabel, bandMessage, pillars, completeness, detail } =
     result;
-  const colors = bandColor(bandLabel);
+  const bs = bandStyles(bandLabel);
 
   return (
-    <div className={`border border-border-primary border-l-4 ${colors.border} rounded-lg overflow-hidden`}>
+    <div
+      className="border border-border-primary rounded-lg overflow-hidden"
+      style={{ borderLeftWidth: 4, borderLeftColor: bs.border }}
+    >
       {/* Header — always visible, clickable */}
       <button
         type="button"
@@ -100,8 +105,13 @@ function ScoreCard({
             )}
           </div>
           <div className="flex items-baseline gap-2">
-            <span className={`font-mono text-2xl tabular-nums ${colors.text}`}>{total}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${colors.bg} ${colors.text}`}>{bandLabel}</span>
+            <span className="font-mono text-2xl tabular-nums" style={{ color: bs.text }}>{total}</span>
+            <span
+              className="text-xs px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: bs.bg, color: bs.text }}
+            >
+              {bandLabel}
+            </span>
             <span className="text-xs text-text-tertiary">
               {expanded ? "▲" : "▼"}
             </span>
@@ -217,14 +227,17 @@ function PillarRow({
         <span className="text-text-secondary">{name}</span>
         <span className="text-text-tertiary">({weight})</span>
       </div>
-      <span className={`font-mono tabular-nums shrink-0 w-8 text-right font-medium ${scoreColor(rounded)}`}>
+      <span
+        className="font-mono tabular-nums shrink-0 w-8 text-right font-medium"
+        style={{ color: scoreHex(rounded) }}
+      >
         {rounded}
       </span>
       {/* Mini bar */}
-      <div className="w-16 h-1.5 rounded-full bg-white/5 shrink-0 overflow-hidden">
+      <div className="w-16 h-1.5 rounded-full shrink-0 overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
         <div
-          className={`h-full rounded-full ${barColor(rounded)}`}
-          style={{ width: `${Math.min(rounded, 100)}%` }}
+          className="h-full rounded-full"
+          style={{ width: `${Math.min(rounded, 100)}%`, backgroundColor: barHex(rounded) }}
         />
       </div>
       <span className="text-text-tertiary text-[11px] leading-tight">{label}</span>
@@ -436,17 +449,19 @@ function Pillar2Detail({
                         {st.txn.merchantName}
                       </td>
                       <td className="py-1 pr-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          bucket === "high_roi" ? "bg-emerald-500/15 text-emerald-400" :
-                          bucket === "essential" ? "bg-sky-500/15 text-sky-400" :
-                          bucket === "meaningful" ? "bg-violet-500/15 text-violet-400" :
-                          bucket === "unsure" ? "bg-amber-500/15 text-amber-400" :
-                          bucket === "no_roi" ? "bg-red-500/15 text-red-400" :
-                          bucket === "mismatch" ? "bg-orange-500/15 text-orange-400" :
-                          "text-text-tertiary"
-                        }`}>
-                          {bucket}
-                        </span>
+                        {BUCKET_COLORS[bucket] ? (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{
+                              backgroundColor: BUCKET_COLORS[bucket].bg,
+                              color: BUCKET_COLORS[bucket].text,
+                            }}
+                          >
+                            {bucket}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-text-tertiary">{bucket}</span>
+                        )}
                       </td>
                       <td className="py-1 pr-2 font-mono tabular-nums text-right">
                         {fmt(st.dollarWeight)}
@@ -454,7 +469,7 @@ function Pillar2Detail({
                       <td className="py-1 font-mono tabular-nums text-right">
                         {isRated ? (
                           <>
-                            <span className={scoreColor(Math.round(st.qualityScore ?? 0))}>{Math.round(st.qualityScore ?? 0)}</span>
+                            <span style={{ color: scoreHex(Math.round(st.qualityScore ?? 0)) }}>{Math.round(st.qualityScore ?? 0)}</span>
                             <span className="text-text-tertiary ml-1 text-[10px]">
                               ({qualityExplain})
                             </span>
