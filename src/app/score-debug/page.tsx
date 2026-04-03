@@ -24,6 +24,44 @@ function fmt(n: number): string {
   });
 }
 
+// ─── Color helpers ─────────────────────────────────────────────
+
+/** Band → left border + score text color */
+function bandColor(band: string): { border: string; text: string; bg: string } {
+  switch (band) {
+    case "Thriving":
+      return { border: "border-l-emerald-500", text: "text-emerald-400", bg: "bg-emerald-500/10" };
+    case "Building":
+      return { border: "border-l-sky-500", text: "text-sky-400", bg: "bg-sky-500/10" };
+    case "Awakening":
+      return { border: "border-l-amber-500", text: "text-amber-400", bg: "bg-amber-500/10" };
+    case "Stretching":
+      return { border: "border-l-orange-500", text: "text-orange-400", bg: "bg-orange-500/10" };
+    case "Surviving":
+      return { border: "border-l-red-500", text: "text-red-400", bg: "bg-red-500/10" };
+    default:
+      return { border: "border-l-zinc-500", text: "text-zinc-400", bg: "bg-zinc-500/10" };
+  }
+}
+
+/** Score 0–100 → inline color for pillar scores */
+function scoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-400";
+  if (score >= 60) return "text-sky-400";
+  if (score >= 40) return "text-amber-400";
+  if (score >= 20) return "text-orange-400";
+  return "text-red-400";
+}
+
+/** Score 0–100 → bar fill color */
+function barColor(score: number): string {
+  if (score >= 80) return "bg-emerald-500";
+  if (score >= 60) return "bg-sky-500";
+  if (score >= 40) return "bg-amber-500";
+  if (score >= 20) return "bg-orange-500";
+  return "bg-red-500";
+}
+
 // ─── Expandable Score Card ─────────────────────────────────────
 
 function ScoreCard({
@@ -42,9 +80,10 @@ function ScoreCard({
   const [expanded, setExpanded] = useState(false);
   const { total, bandLabel, bandMessage, pillars, completeness, detail } =
     result;
+  const colors = bandColor(bandLabel);
 
   return (
-    <div className="border border-border-primary rounded-lg overflow-hidden">
+    <div className={`border border-border-primary border-l-4 ${colors.border} rounded-lg overflow-hidden`}>
       {/* Header — always visible, clickable */}
       <button
         type="button"
@@ -61,8 +100,8 @@ function ScoreCard({
             )}
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-2xl tabular-nums">{total}</span>
-            <span className="text-xs text-text-secondary">{bandLabel}</span>
+            <span className={`font-mono text-2xl tabular-nums ${colors.text}`}>{total}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded ${colors.bg} ${colors.text}`}>{bandLabel}</span>
             <span className="text-xs text-text-tertiary">
               {expanded ? "▲" : "▼"}
             </span>
@@ -171,16 +210,24 @@ function PillarRow({
   score: number;
   label: string;
 }) {
+  const rounded = Math.round(score);
   return (
-    <div className="flex items-start gap-2 text-xs">
+    <div className="flex items-center gap-2 text-xs">
       <div className="flex items-center gap-1 shrink-0 w-32">
         <span className="text-text-secondary">{name}</span>
         <span className="text-text-tertiary">({weight})</span>
       </div>
-      <span className="font-mono tabular-nums shrink-0 w-8 text-right">
-        {Math.round(score)}
+      <span className={`font-mono tabular-nums shrink-0 w-8 text-right font-medium ${scoreColor(rounded)}`}>
+        {rounded}
       </span>
-      <span className="text-text-tertiary">{label}</span>
+      {/* Mini bar */}
+      <div className="w-16 h-1.5 rounded-full bg-white/5 shrink-0 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${barColor(rounded)}`}
+          style={{ width: `${Math.min(rounded, 100)}%` }}
+        />
+      </div>
+      <span className="text-text-tertiary text-[11px] leading-tight">{label}</span>
     </div>
   );
 }
@@ -388,8 +435,18 @@ function Pillar2Detail({
                       <td className="py-1 pr-2 text-text-secondary max-w-[140px] truncate">
                         {st.txn.merchantName}
                       </td>
-                      <td className="py-1 pr-2 text-text-tertiary">
-                        {bucket}
+                      <td className="py-1 pr-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          bucket === "high_roi" ? "bg-emerald-500/15 text-emerald-400" :
+                          bucket === "essential" ? "bg-sky-500/15 text-sky-400" :
+                          bucket === "meaningful" ? "bg-violet-500/15 text-violet-400" :
+                          bucket === "unsure" ? "bg-amber-500/15 text-amber-400" :
+                          bucket === "no_roi" ? "bg-red-500/15 text-red-400" :
+                          bucket === "mismatch" ? "bg-orange-500/15 text-orange-400" :
+                          "text-text-tertiary"
+                        }`}>
+                          {bucket}
+                        </span>
                       </td>
                       <td className="py-1 pr-2 font-mono tabular-nums text-right">
                         {fmt(st.dollarWeight)}
@@ -397,7 +454,7 @@ function Pillar2Detail({
                       <td className="py-1 font-mono tabular-nums text-right">
                         {isRated ? (
                           <>
-                            <span>{Math.round(st.qualityScore ?? 0)}</span>
+                            <span className={scoreColor(Math.round(st.qualityScore ?? 0))}>{Math.round(st.qualityScore ?? 0)}</span>
                             <span className="text-text-tertiary ml-1 text-[10px]">
                               ({qualityExplain})
                             </span>
