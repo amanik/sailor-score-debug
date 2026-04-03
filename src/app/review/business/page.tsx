@@ -8,6 +8,20 @@ import { useTransactions, useTransactionDispatch, selectUnreviewedByType } from 
 import type { Transaction } from "@/data/transactions";
 import { ExpenseCard } from "@/components/review/ExpenseCard";
 import { ProgressBar } from "@/components/review/ProgressBar";
+import { RatingGauge } from "@/components/review/RatingGauge";
+
+const roiMessages: Record<number, string> = {
+  1: "This barely moves the needle",
+  2: "Minimal impact on growth",
+  3: "Below average return",
+  4: "Slight positive impact",
+  5: "Fair return on investment",
+  6: "Solid contribution to growth",
+  7: "Strong ROI \u2014 keep investing",
+  8: "High-impact spend",
+  9: "Exceptional return",
+  10: "Game-changing investment",
+};
 
 type Bucket = "high_roi" | "no_roi" | "unsure";
 type Direction = "left" | "right" | "up" | null;
@@ -261,19 +275,15 @@ export default function BusinessReviewPage() {
                   Rate the ROI of {current.merchantName}
                 </h2>
 
-                <div className="flex flex-col gap-3 mb-5">
-                  <div className="flex items-center justify-between px-2">
-                    <span className="text-[10px] text-text-tertiary">Low ROI</span>
-                    <span className="text-2xl font-bold text-text-primary">{roiRating}</span>
-                    <span className="text-[10px] text-text-tertiary">High ROI</span>
-                  </div>
-                  <input
-                    type="range"
+                <div className="mb-5">
+                  <RatingGauge
+                    value={roiRating}
+                    onChange={setRoiRating}
                     min={1}
                     max={10}
-                    value={roiRating}
-                    onChange={(e) => setRoiRating(Number(e.target.value))}
-                    className="w-full accent-text-primary"
+                    messages={roiMessages}
+                    lowLabel="Low ROI"
+                    highLabel="High ROI"
                   />
                 </div>
 

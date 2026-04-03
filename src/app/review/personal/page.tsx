@@ -8,6 +8,20 @@ import { useTransactions, useTransactionDispatch, selectUnreviewedByType } from 
 import type { Transaction } from "@/data/transactions";
 import { ExpenseCard } from "@/components/review/ExpenseCard";
 import { ProgressBar } from "@/components/review/ProgressBar";
+import { RatingGauge } from "@/components/review/RatingGauge";
+
+const meaningMessages: Record<number, string> = {
+  1: "This didn\u2019t bring me joy",
+  2: "Barely noticeable impact",
+  3: "A small moment",
+  4: "Somewhat meaningful",
+  5: "Worth it in the moment",
+  6: "Genuinely enriching",
+  7: "This made my week",
+  8: "Deeply meaningful",
+  9: "Life-changing experience",
+  10: "Peak joy \u2014 absolutely worth it",
+};
 
 type Bucket = "essential" | "meaningful" | "mismatch";
 type Direction = "left" | "right" | "up" | null;
@@ -249,19 +263,15 @@ export default function PersonalReviewPage() {
                   How meaningful was this?
                 </h2>
 
-                <div className="flex flex-col gap-3 mb-5">
-                  <div className="flex items-center justify-between px-2">
-                    <span className="text-[10px] text-text-tertiary">Meh</span>
-                    <span className="text-2xl font-bold text-text-primary">{rating}</span>
-                    <span className="text-[10px] text-text-tertiary">Amazing</span>
-                  </div>
-                  <input
-                    type="range"
+                <div className="mb-5">
+                  <RatingGauge
+                    value={rating}
+                    onChange={setRating}
                     min={1}
                     max={10}
-                    value={rating}
-                    onChange={(e) => setRating(Number(e.target.value))}
-                    className="w-full accent-text-primary"
+                    messages={meaningMessages}
+                    lowLabel="Meh"
+                    highLabel="Amazing"
                   />
                 </div>
 
